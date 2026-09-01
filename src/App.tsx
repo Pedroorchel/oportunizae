@@ -29,6 +29,7 @@ import { PrivacyPolicyScreen, TermsOfServiceScreen } from './components/LegalScr
 import MessagesListScreen from './components/MessagesListScreen';
 import ChangePasswordScreen from './components/ChangePasswordScreen';
 import CoursePlayerScreen from './components/CoursePlayerScreen';
+import SettingsScreen from './components/SettingsScreen';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('landing');
@@ -1485,25 +1486,16 @@ export default function App() {
 
           {/* Settings options screen */}
           {currentScreen === 'settings' && (
-            <ProfileAndSettings
+            <SettingsScreen
               user={user}
               onSetUser={setUser}
               onNavigate={handleScreenNavigation}
-              tabType={settingsTabType}
-              setTabType={setSettingsTabType}
               favorites={favorites}
-              onToggleFavorite={handleToggleFavorite}
               applications={applications}
-              onDeleteAllData={handleDeleteAllData}
               enrollments={enrollments}
-              onContinueCourse={handleContinueCourse}
-              onUnsubscribeCourse={handleUnsubscribeCourse}
-              onNavigateToJob={() => handleScreenNavigation('jobs')}
-              onNavigateToCourse={() => handleScreenNavigation('courses')}
-              onNavigateToJobs={() => handleScreenNavigation('jobs')}
-              onNavigateToCourses={() => handleScreenNavigation('courses')}
-              onCancelApplication={handleCancelApplication}
               completedCourses={completedCourses}
+              onDeleteAllData={handleDeleteAllData}
+              onSignOut={handleSignOut}
             />
           )}
 

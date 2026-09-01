@@ -445,7 +445,7 @@ export default function ProfileAndSettings({
             Perfil
           </button>
           <button
-            onClick={() => setTabType('settings')}
+            onClick={() => onNavigate('settings')}
             className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
               tabType === 'settings'
                 ? 'bg-white text-gray-900 shadow-xs'
@@ -453,7 +453,7 @@ export default function ProfileAndSettings({
             }`}
           >
             <Bell className="w-3 h-3" />
-            <span>Ajustes</span>
+            <span>Configurações</span>
           </button>
           <button
             onClick={() => setTabType('cv')}
