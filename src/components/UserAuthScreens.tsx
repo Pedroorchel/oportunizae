@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User as UserIcon, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader2, ShieldAlert } from 'lucide-react';
 import { ScreenId, User } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { isAccountBlocked, isUserRecordBlocked, fetchAccountBlockReason, extractBlockReasonFromRecord } from '../lib/blockedAccounts';
 
 const logo = 'https://www.image2url.com/r2/default/images/1781824138816-3fd9702f-4521-41d2-8411-d8fc61114350.png';
 
@@ -85,9 +86,20 @@ export default function UserAuthScreens({
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
+      // 1. Verificação prévia de bloqueio
+      const isPreBlocked = await isAccountBlocked({ email: cleanEmail });
+      if (isPreBlocked) {
+        const reason = await fetchAccountBlockReason({ email: cleanEmail });
+        setErrorMsg(`Esta conta foi bloqueada pelo administrador. Motivo: "${reason}". Acesso negado e revogado.`);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password: password
       });
 
@@ -95,10 +107,26 @@ export default function UserAuthScreens({
         throw error;
       }
 
+      if (data && data.user) {
+        const isPostBlocked = await isAccountBlocked({ id: data.user.id, email: cleanEmail });
+        if (isPostBlocked) {
+          await supabase.auth.signOut();
+          const reason = await fetchAccountBlockReason({ id: data.user.id, email: cleanEmail });
+          setErrorMsg(`Esta conta foi bloqueada pelo administrador. Motivo: "${reason}". Acesso negado e revogado.`);
+          setLoading(false);
+          return;
+        }
+      }
+
       // App.tsx handles onAuthStateChange, so we just navigate if success
       onNavigate('home');
     } catch (err: any) {
-      setErrorMsg(err.message || 'E-mail ou senha incorretos!');
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('invalid login credentials')) {
+        setErrorMsg('E-mail ou senha incorretos!');
+      } else {
+        setErrorMsg(msg || 'E-mail ou senha incorretos!');
+      }
     } finally {
       setLoading(false);
     }
@@ -124,6 +152,37 @@ export default function UserAuthScreens({
 
     try {
       const cleanEmail = email.trim().toLowerCase();
+
+      // Verificação prévia se email já existe ou está bloqueado
+      const isBlocked = await isAccountBlocked({ email: cleanEmail });
+      if (isBlocked) {
+        const reason = await fetchAccountBlockReason({ email: cleanEmail });
+        setErrorMsg(`Esta conta/e-mail foi bloqueada pelo administrador. Motivo: "${reason}". Novos cadastros estão impedidos.`);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (existingUser) {
+          if (isUserRecordBlocked(existingUser)) {
+            const reason = extractBlockReasonFromRecord(existingUser) || await fetchAccountBlockReason({ email: cleanEmail });
+            setErrorMsg(`Esta conta/e-mail foi bloqueada pelo administrador. Motivo: "${reason}". Novos cadastros estão impedidos.`);
+          } else {
+            setErrorMsg('Este e-mail já está sendo utilizado ou encontra-se bloqueado.');
+          }
+          setLoading(false);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Aviso verificação pré-cadastro:', checkErr);
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: password,
@@ -136,6 +195,10 @@ export default function UserAuthScreens({
       });
 
       if (error) {
+        const lower = (error.message || '').toLowerCase();
+        if (lower.includes('already registered') || lower.includes('already exists') || lower.includes('duplicate')) {
+          throw new Error('Este e-mail já está sendo utilizado ou encontra-se bloqueado.');
+        }
         throw error;
       }
 
@@ -155,6 +218,14 @@ export default function UserAuthScreens({
       }
 
       if (activeSession && activeSession.user) {
+        const isSessionBlocked = await isAccountBlocked({ id: activeSession.user.id, email: cleanEmail });
+        if (isSessionBlocked) {
+          await supabase.auth.signOut();
+          setErrorMsg('Esta conta/e-mail foi bloqueada pelo administrador e está impedida de criar novos acessos.');
+          setLoading(false);
+          return;
+        }
+
         const loggedUser: User = {
           id: activeSession.user.id,
           name: name.trim() || activeSession.user.user_metadata?.full_name || cleanEmail.split('@')[0],
@@ -263,8 +334,22 @@ export default function UserAuthScreens({
       <div className="bg-white p-6 rounded-[28px] shadow-[0_15px_35px_rgba(79,162,192,0.06)] border border-gray-100">
         {/* Error / Success alerts */}
         {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-medium border border-red-100">
-            {errorMsg}
+          <div className={`mb-4 p-3.5 rounded-xl text-xs font-medium border ${
+            errorMsg.toLowerCase().includes('bloquead') || errorMsg.includes('Motivo:')
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-red-50 text-red-600 border-red-100'
+          }`}>
+            {errorMsg.toLowerCase().includes('bloquead') || errorMsg.includes('Motivo:') ? (
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-left">
+                  <strong className="block text-rose-900 font-bold text-xs uppercase tracking-wide">Conta Bloqueada</strong>
+                  <p className="text-rose-800 leading-relaxed font-normal">{errorMsg}</p>
+                </div>
+              </div>
+            ) : (
+              errorMsg
+            )}
           </div>
         )}
         {successMsg && (

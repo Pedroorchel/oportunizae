@@ -5,12 +5,21 @@ import {
   TrendingUp, MapPin, DollarSign, BookOpen, Layers, BarChart2, Filter, 
   Calendar, Award, ListFilter, Check, ExternalLink, AlertOctagon, Info, Star, Play,
   Mail, Phone, Smartphone, ClipboardCheck, ArrowUpRight, CheckCircle2, UserCheck,
-  Menu, X, Eye, EyeOff
+  Menu, X, Eye, EyeOff, Shield, ShieldCheck, Tag, Sparkles, ChevronDown, UserCog,
+  Lock, Unlock, Ban, AlertTriangle, UserX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Job, Course, Application, User, Enrollment } from '../types';
 import { mockJobs, mockCourses, saveAdminJobs, saveAdminCourses } from '../data';
 import { supabase } from '../lib/supabaseClient';
+import { 
+  blockUserAccount, 
+  unblockUserAccount, 
+  isUserRecordBlocked, 
+  getLocalBlockedEmails, 
+  getLocalBlockedIds,
+  getAccountBlockReason 
+} from '../lib/blockedAccounts';
 
 interface AdminPanelScreenProps {
   user: User;
@@ -27,6 +36,24 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
   const [applications, setApplications] = useState<Application[]>([]);
   const [enrollmentsList, setEnrollmentsList] = useState<Enrollment[]>([]);
   const [userList, setUserList] = useState<User[]>([]);
+  
+  // Accounts / Roles Management states
+  const [usersSearch, setUsersSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('Todos');
+  const [editingRoleUser, setEditingRoleUser] = useState<User | null>(null);
+  const [selectedRoleInModal, setSelectedRoleInModal] = useState<string>('Estudante');
+  const [customRoleInput, setCustomRoleInput] = useState<string>('');
+  const [savingRoleUserId, setSavingRoleUserId] = useState<string | null>(null);
+
+  // Quick Block Email Direct Input
+  const [quickBlockEmailInput, setQuickBlockEmailInput] = useState('');
+  const [isQuickBlocking, setIsQuickBlocking] = useState(false);
+
+  // Block and Delete account states
+  const [userToBlockModal, setUserToBlockModal] = useState<User | null>(null);
+  const [blockReasonInput, setBlockReasonInput] = useState<string>('Violação das diretrizes da comunidade');
+  const [userToDeleteModal, setUserToDeleteModal] = useState<User | null>(null);
+  const [isProcessingActionId, setIsProcessingActionId] = useState<string | null>(null);
   
   // Category selections
   const [selectedJobCategory, setSelectedJobCategory] = useState<string>('Todos');
@@ -102,32 +129,34 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
       setLoading(true);
       const { data, error } = await supabase
         .from('applications')
-        .select('*')
-        .order('applied_date', { ascending: false });
+        .select('*');
 
-      if (error) throw error;
-      if (data) {
+      if (error) {
+        console.error('Error fetching applications from supabase:', error);
+        throw error;
+      }
+      if (data && Array.isArray(data)) {
         const mapped: Application[] = data.map(item => {
-          let cName = item.candidate_name || item.user_id?.substring(0, 8) || 'Candidato';
-          let cEmail = '';
-          let cPhone = '';
-          if (cName.includes('|')) {
+          let cName = String(item.candidate_name || (item.user_id ? String(item.user_id).substring(0, 8) : '') || 'Candidato');
+          let cEmail = item.candidate_email ? String(item.candidate_email) : '';
+          let cPhone = item.candidate_phone ? String(item.candidate_phone) : '';
+          if (typeof cName === 'string' && cName.includes('|')) {
             const parts = cName.split('|');
             cName = parts[0].trim();
-            if (parts.length > 1) cEmail = parts[1].trim();
-            if (parts.length > 2) cPhone = parts[2].trim();
+            if (parts.length > 1 && !cEmail) cEmail = parts[1].trim();
+            if (parts.length > 2 && !cPhone) cPhone = parts[2].trim();
           }
 
           return {
-            id: item.id,
-            jobId: item.job_id,
-            jobTitle: item.job_title,
-            company: item.company,
-            appliedDate: item.created_at || item.applied_date,
-            status: item.status,
+            id: String(item.id ?? `app-${Math.random()}`),
+            jobId: String(item.job_id || ''),
+            jobTitle: String(item.job_title || 'Vaga'),
+            company: String(item.company || 'Empresa'),
+            appliedDate: String(item.created_at || item.applied_date || new Date().toISOString()),
+            status: item.status || 'Em análise',
             candidateName: cName,
-            cvLink: item.cv_link,
-            cvFileName: item.cv_file_name,
+            cvLink: item.cv_link ? String(item.cv_link) : undefined,
+            cvFileName: item.cv_file_name ? String(item.cv_file_name) : undefined,
             candidateEmail: cEmail || undefined,
             candidatePhone: cPhone || undefined
           };
@@ -136,7 +165,7 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
       }
     } catch (err: any) {
       console.error('Error fetching applications:', err);
-      setErrorMsg('Erro ao buscar candidaturas do banco em tempo real.');
+      setErrorMsg('Erro ao sincronizar candidaturas do banco em tempo real.');
     } finally {
       setLoading(false);
     }
@@ -147,20 +176,19 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
       setLoading(true);
       const { data, error } = await supabase
         .from('enrollments')
-        .select('*')
-        .order('enrolled_date', { ascending: false });
+        .select('*');
 
       if (error) throw error;
-      if (data) {
+      if (data && Array.isArray(data)) {
         const mapped: Enrollment[] = data.map(item => ({
-          id: item.id,
-          courseId: item.course_id,
-          courseTitle: item.course_title,
-          instructor: item.instructor,
-          enrolledDate: item.enrolled_date || item.created_at,
-          status: item.status,
-          progress: item.progress || 0,
-          userName: item.user_name || item.user_id?.substring(0, 8) || 'Aluno'
+          id: String(item.id ?? `enr-${Math.random()}`),
+          courseId: String(item.course_id || ''),
+          courseTitle: String(item.course_title || 'Curso'),
+          instructor: String(item.instructor || 'Instrutor'),
+          enrolledDate: String(item.enrolled_date || item.created_at || ''),
+          status: item.status || 'Em andamento',
+          progress: Number(item.progress) || 0,
+          userName: String(item.user_name || (item.user_id ? String(item.user_id).substring(0, 8) : '') || 'Aluno')
         }));
         setEnrollmentsList(mapped);
       }
@@ -185,11 +213,48 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
         throw error;
       }
       console.log('Fetched users raw data:', data);
-      if (data) {
-        const usersWithAdmin = (data as any[]).map(user => ({
-          ...user,
-          isAdmin: Boolean(user.is_admin || user.isAdmin || user.email === 'pedroorchel12@gmail.com')
-        }));
+      if (data && Array.isArray(data)) {
+        const localEmails = getLocalBlockedEmails();
+        const localIds = getLocalBlockedIds();
+
+        const usersWithAdmin = (data as any[]).map(u => {
+          const emailLower = String(u.email || '').trim().toLowerCase();
+          const idStr = String(u.id || '').trim();
+          const isAdm = Boolean(
+            u.is_admin || 
+            u.isAdmin || 
+            u.role === 'Administrador' || 
+            u.cargo === 'Administrador' || 
+            emailLower === 'pedroorchel12@gmail.com'
+          );
+          const isBlocked = Boolean(
+            isUserRecordBlocked(u) ||
+            (emailLower && localEmails.includes(emailLower)) ||
+            (idStr && localIds.includes(idStr))
+          );
+          const userRole = isBlocked ? 'BLOQUEADO' : String(u.role || u.cargo || (isAdm ? 'Administrador' : 'Estudante'));
+          
+          let resolvedReason = u.block_reason || u.blockReason || '';
+          if (!resolvedReason && typeof u.bio === 'string' && u.bio.includes('[[ACCOUNT_BLOCKED]]:')) {
+            resolvedReason = u.bio.replace('[[ACCOUNT_BLOCKED]]:', '').trim();
+          }
+          if (!resolvedReason && isBlocked) {
+            resolvedReason = getAccountBlockReason({ id: idStr, email: emailLower });
+          }
+
+          return {
+            ...u,
+            id: idStr,
+            name: String(u.name || u.email || 'Usuário'),
+            email: String(u.email || ''),
+            isAdmin: isAdm && !isBlocked,
+            isBlocked: isBlocked,
+            blockReason: isBlocked ? resolvedReason : undefined,
+            status: isBlocked ? 'blocked' : (u.status || 'active'),
+            role: userRole,
+            cargo: userRole
+          };
+        });
         setUserList(usersWithAdmin as User[]);
         if (usersWithAdmin.length === 0) {
           setSuccessMsg("Nenhum usuário encontrado na base de dados.");
@@ -203,6 +268,235 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleToggleBlockUser = async (targetUser: User, shouldBlock: boolean, customReason?: string) => {
+    if (!targetUser) return;
+    const targetId = targetUser.id || targetUser.email;
+    setIsProcessingActionId(targetId);
+
+    const reasonToUse = customReason !== undefined 
+      ? customReason 
+      : (blockReasonInput.trim() || 'Violação das diretrizes da comunidade');
+
+    // Optimistic local state update
+    setUserList(prev => prev.map(u => {
+      const idMatch = u.id && targetUser.id && u.id === targetUser.id;
+      const emailMatch = u.email && targetUser.email && u.email.toLowerCase() === targetUser.email.toLowerCase();
+      if (idMatch || emailMatch) {
+        return {
+          ...u,
+          isBlocked: shouldBlock,
+          blockReason: shouldBlock ? reasonToUse : undefined,
+          status: shouldBlock ? 'blocked' : 'active',
+          role: shouldBlock ? 'BLOQUEADO' : (u.role === 'BLOQUEADO' ? 'Estudante' : u.role),
+          cargo: shouldBlock ? 'BLOQUEADO' : (u.cargo === 'BLOQUEADO' ? 'Estudante' : u.cargo)
+        };
+      }
+      return u;
+    }));
+
+    try {
+      if (shouldBlock) {
+        await blockUserAccount(targetUser.id, targetUser.email, targetUser.name, reasonToUse);
+      } else {
+        await unblockUserAccount(targetUser.id, targetUser.email);
+      }
+
+      setSuccessMsg(
+        shouldBlock 
+          ? `Conta de ${targetUser.name} (${targetUser.email}) foi bloqueada com sucesso! Motivo registrado: "${reasonToUse}".`
+          : `Conta de ${targetUser.name} foi desbloqueada com sucesso!`
+      );
+      setTimeout(() => setSuccessMsg(null), 5000);
+      setUserToBlockModal(null);
+      await fetchAllUsers();
+    } catch (err: any) {
+      console.error('Error updating blocked status:', err);
+      setErrorMsg(`Erro ao alterar status de bloqueio: ${err.message || 'Erro de conexão'}`);
+      setTimeout(() => setErrorMsg(null), 4000);
+    } finally {
+      setIsProcessingActionId(null);
+    }
+  };
+
+  const handleQuickBlockEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = quickBlockEmailInput.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMsg('Digite um e-mail válido para bloquear.');
+      setTimeout(() => setErrorMsg(null), 3000);
+      return;
+    }
+
+    if (cleanEmail === 'pedroorchel12@gmail.com') {
+      setErrorMsg('Não é permitido bloquear a conta do Administrador Principal.');
+      setTimeout(() => setErrorMsg(null), 3000);
+      return;
+    }
+
+    setIsQuickBlocking(true);
+    try {
+      await blockUserAccount(undefined, cleanEmail, cleanEmail.split('@')[0], 'Bloqueio rápido direto pelo Administrador');
+      setSuccessMsg(`O e-mail "${cleanEmail}" foi bloqueado e banido com sucesso da plataforma.`);
+      setQuickBlockEmailInput('');
+      setTimeout(() => setSuccessMsg(null), 5000);
+      await fetchAllUsers();
+    } catch (err: any) {
+      setErrorMsg(`Erro ao bloquear e-mail: ${err.message || 'Erro desconhecido'}`);
+      setTimeout(() => setErrorMsg(null), 4000);
+    } finally {
+      setIsQuickBlocking(false);
+    }
+  };
+
+  const handleDeleteUser = async (targetUser: User) => {
+    if (!targetUser) return;
+    const targetId = targetUser.id || targetUser.email;
+    setIsProcessingActionId(targetId);
+
+    // Optimistic local removal
+    setUserList(prev => prev.filter(u => u.id !== targetUser.id && u.email !== targetUser.email));
+
+    try {
+      if (targetUser.id) {
+        // Cascade remove applications if any
+        try {
+          await supabase.from('applications').delete().eq('user_id', targetUser.id);
+        } catch (e) {
+          console.warn('Cascade delete applications notice:', e);
+        }
+
+        const { error } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', targetUser.id);
+
+        if (error) {
+          console.warn('Notice deleting user record:', error);
+        }
+      }
+
+      setSuccessMsg(`Conta de ${targetUser.name} (${targetUser.email}) foi excluída permanentemente.`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      setUserToDeleteModal(null);
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      setErrorMsg(`Erro ao excluir conta: ${err.message || 'Erro de conexão'}`);
+      setTimeout(() => setErrorMsg(null), 4000);
+    } finally {
+      setIsProcessingActionId(null);
+    }
+  };
+
+  const handleSaveUserRole = async (targetUser: User, newRole: string) => {
+    if (!targetUser) return;
+    const finalRole = newRole.trim() || 'Estudante';
+    const isAdm = finalRole === 'Administrador' || targetUser.email === 'pedroorchel12@gmail.com';
+    const targetId = targetUser.id || 'target-user';
+    setSavingRoleUserId(targetId);
+
+    // Optimistic local state update
+    setUserList(prev => prev.map(u => {
+      if (u.id === targetUser.id || (u.email && u.email === targetUser.email)) {
+        return {
+          ...u,
+          role: finalRole,
+          cargo: finalRole,
+          isAdmin: isAdm
+        };
+      }
+      return u;
+    }));
+
+    try {
+      if (targetUser.id) {
+        // Attempt update with role, cargo, is_admin
+        const { error } = await supabase
+          .from('users')
+          .update({
+            role: finalRole,
+            cargo: finalRole,
+            is_admin: isAdm,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', targetUser.id);
+
+        if (error) {
+          console.warn('Fallback update for is_admin if role/cargo column is restricted:', error);
+          await supabase
+            .from('users')
+            .update({
+              is_admin: isAdm,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', targetUser.id);
+        }
+      }
+
+      setSuccessMsg(`Cargo de ${targetUser.name} definido para "${finalRole}" e salvo com sucesso!`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      setEditingRoleUser(null);
+    } catch (err: any) {
+      console.error('Error saving user role in database:', err);
+      setErrorMsg(`Erro ao salvar cargo: ${err.message || 'Erro de conexão'}`);
+      setTimeout(() => setErrorMsg(null), 4000);
+    } finally {
+      setSavingRoleUserId(null);
+    }
+  };
+
+  const handleOpenEditRoleModal = (targetUser: User) => {
+    setEditingRoleUser(targetUser);
+    const currRole = targetUser.role || targetUser.cargo || (targetUser.isAdmin ? 'Administrador' : 'Estudante');
+    setSelectedRoleInModal(currRole);
+    if (!['Administrador', 'Recrutador / Empresa', 'Instrutor / Professor', 'Moderador', 'Estudante / Candidato', 'Estudante'].includes(currRole)) {
+      setCustomRoleInput(currRole);
+    } else {
+      setCustomRoleInput('');
+    }
+  };
+
+  const getRoleBadgeStyle = (roleName?: string, isAdm?: boolean) => {
+    const r = (roleName || (isAdm ? 'Administrador' : 'Estudante')).toLowerCase();
+    if (r.includes('admin') || isAdm) {
+      return {
+        bg: 'bg-amber-500/15 border border-amber-500/30 text-amber-300',
+        dot: 'bg-amber-400',
+        label: roleName || 'Administrador',
+        icon: ShieldCheck
+      };
+    }
+    if (r.includes('recrutador') || r.includes('empresa') || r.includes('rh')) {
+      return {
+        bg: 'bg-[#52A8C7]/15 border border-[#52A8C7]/30 text-[#52A8C7]',
+        dot: 'bg-[#52A8C7]',
+        label: roleName || 'Recrutador / Empresa',
+        icon: Briefcase
+      };
+    }
+    if (r.includes('instrutor') || r.includes('professor') || r.includes('educad')) {
+      return {
+        bg: 'bg-violet-500/15 border border-violet-500/30 text-violet-300',
+        dot: 'bg-violet-400',
+        label: roleName || 'Instrutor / Professor',
+        icon: GraduationCap
+      };
+    }
+    if (r.includes('moderador') || r.includes('suporte')) {
+      return {
+        bg: 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300',
+        dot: 'bg-emerald-400',
+        label: roleName || 'Moderador',
+        icon: UserCheck
+      };
+    }
+    return {
+      bg: 'bg-slate-800/80 border border-slate-700/80 text-slate-300',
+      dot: 'bg-slate-400',
+      label: roleName || 'Estudante',
+      icon: BookOpen
+    };
   };
 
   useEffect(() => {
@@ -469,31 +763,33 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
   };
 
   // Safe date formatter for Brasília time
-  const formatBrasiliaTime = (dateString: string) => {
+  const formatBrasiliaTime = (dateString?: string | null) => {
     try {
+      if (!dateString) return 'Data não informada';
+      const str = String(dateString);
       // Check if it's already in DD/MM/YYYY format and missing timestamp (legacy)
-      if (dateString.includes('/') && dateString.length <= 10) {
-        return dateString; // Just return old format
+      if (str.includes('/') && str.length <= 10) {
+        return str;
       }
       // If it's the recent ISO format or standard date
-      const d = new Date(dateString);
-      if (isNaN(d.getTime())) return dateString;
+      const d = new Date(str);
+      if (isNaN(d.getTime())) return str;
       return d.toLocaleString('pt-BR', { 
         timeZone: 'America/Sao_Paulo',
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
       });
     } catch {
-      return dateString;
+      return String(dateString || '');
     }
   };
 
   // Get WhatsApp redirect link
   const getCandidateWhatsAppLink = (candidateName: string, jobTitle: string, candidatePhone?: string) => {
     const defaultPhone = '5541996502358';
-    let p = candidatePhone ? candidatePhone.replace(/\D/g, '') : defaultPhone;
+    let p = candidatePhone ? String(candidatePhone).replace(/\D/g, '') : defaultPhone;
     if (candidatePhone && p.length >= 10 && p.length <= 11) p = '55' + p;
-    const textMsg = `Olá, ${candidateName}! Aqui é do setor administrativo da Oportuniza Araucária. Entramos em contato para conversar sobre a sua candidatura para a vaga de *${jobTitle}*.`;
+    const textMsg = `Olá, ${candidateName || 'Candidato'}! Aqui é do setor administrativo da Oportuniza Araucária. Entramos em contato para conversar sobre a sua candidatura para a vaga de *${jobTitle || 'Vaga'}*.`;
     return `https://api.whatsapp.com/send?phone=${p}&text=${encodeURIComponent(textMsg)}`;
   };
 
@@ -1212,7 +1508,7 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                         <div key={app.id} className="py-3 flex justify-between items-center group">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 font-black text-[10px] flex items-center justify-center text-[#52A8C7] uppercase">
-                              {app.candidateName?.substring(0, 1) || 'C'}
+                              {String(app.candidateName || 'C').substring(0, 1)}
                             </div>
                             <div className="min-w-0">
                               <p className="text-[11px] font-bold text-slate-200 truncate group-hover:text-[#52A8C7] transition-colors">{app.jobTitle}</p>
@@ -1259,7 +1555,7 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                         <div key={enr.id} className="py-3 flex justify-between items-center group">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 font-black text-[10px] flex items-center justify-center text-violet-400 uppercase">
-                              {enr.userName?.substring(0, 1) || 'A'}
+                              {String(enr.userName || 'A').substring(0, 1)}
                             </div>
                             <div className="min-w-0">
                               <p className="text-[11px] font-bold text-slate-200 truncate group-hover:text-violet-400 transition-colors">{enr.courseTitle}</p>
@@ -1722,15 +2018,15 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                       <tbody className="divide-y divide-slate-800/50 text-xs">
                         {applications
                           .filter(app => 
-                            (app.jobTitle || '').toLowerCase().includes((appSearch || '').toLowerCase()) || 
-                            (app.company || '').toLowerCase().includes((appSearch || '').toLowerCase()) ||
-                            (app.candidateName && app.candidateName.toLowerCase().includes((appSearch || '').toLowerCase()))
+                            String(app.jobTitle || '').toLowerCase().includes(String(appSearch || '').toLowerCase()) || 
+                            String(app.company || '').toLowerCase().includes(String(appSearch || '').toLowerCase()) ||
+                            String(app.candidateName || '').toLowerCase().includes(String(appSearch || '').toLowerCase())
                           )
                           .map((app) => (
                             <tr key={app.id} className="hover:bg-slate-950/40 transition-colors flex flex-col sm:table-row py-4 px-6 sm:p-0">
                               <td className="py-1 sm:py-4 px-0 sm:px-6 block sm:table-cell">
                                 <div className="flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0.5">
-                                  <span className="font-mono text-[9px] text-slate-500 font-bold">#{app.id.substring(0, 8).toUpperCase()}</span>
+                                  <span className="font-mono text-[9px] text-slate-500 font-bold">#{String(app.id || '').substring(0, 8).toUpperCase()}</span>
                                   <span className="text-[10px] text-slate-400">{formatBrasiliaTime(app.appliedDate)}</span>
                                 </div>
                               </td>
@@ -1849,7 +2145,7 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-200">
-                                  {enr.userName?.substring(0, 1) || 'A'}
+                                  {String(enr.userName || 'A').substring(0, 1)}
                                 </div>
                                 <span className="text-xs font-bold text-white whitespace-nowrap">{enr.userName}</span>
                               </div>
@@ -1890,57 +2186,394 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
             </motion.div>
           )}
 
-          {/* SCREEN 6: ACCOUNTS DATABASE */}
+          {/* SCREEN 6: ACCOUNTS DATABASE & ROLE MANAGEMENT */}
           {activeTab === 'accounts' && (
             <motion.div 
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               className="space-y-6"
             >
-              <div className="flex justify-between items-center">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-slate-900/60 p-6 rounded-3xl border border-slate-800 backdrop-blur-sm">
                 <div>
-                  <h2 className="text-2xl font-black text-white tracking-tight">Contas Cadastradas</h2>
-                  <p className="text-xs text-slate-400 mt-1">Lista de todos os usuários registrados no aplicativo.</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#52A8C7]/15 border border-[#52A8C7]/30 flex items-center justify-center text-[#52A8C7]">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Contas Cadastradas & Gestão de Cargos</h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Defina permissões, atribua cargos oficiais e salve as alterações em tempo real no banco de dados.</p>
+                    </div>
+                  </div>
                 </div>
-                <button 
-                  onClick={fetchAllUsers}
-                  className="px-5 py-3.5 bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700 font-bold rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                >
-                  <Clock className="w-4 h-4 text-[#52A8C7]" />
-                  <span>Sincronizar</span>
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={fetchAllUsers}
+                    className="px-5 py-3 bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700 font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm"
+                  >
+                    <Clock className="w-4 h-4 text-[#52A8C7]" />
+                    <span>Sincronizar Banco</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary Stats Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+                <div className="bg-slate-900 border border-slate-800/80 p-4 rounded-2xl space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Total de Contas</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-black text-white">{userList.length}</span>
+                    <Users className="w-4 h-4 text-slate-500" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-amber-500/20 p-4 rounded-2xl space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-amber-400">Administradores</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-black text-amber-300">
+                      {userList.filter(u => u.isAdmin || u.role === 'Administrador' || u.cargo === 'Administrador').length}
+                    </span>
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-rose-500/25 bg-rose-500/5 p-4 rounded-2xl space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-rose-400">Bloqueadas / Travadas</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-black text-rose-400">
+                      {userList.filter(u => u.isBlocked || u.status === 'blocked').length}
+                    </span>
+                    <Lock className="w-4 h-4 text-rose-400" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-[#52A8C7]/20 p-4 rounded-2xl space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-[#52A8C7]">Recrutadores</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-black text-[#52A8C7]">
+                      {userList.filter(u => String(u.role || u.cargo || '').toLowerCase().includes('recrutador') || String(u.role || u.cargo || '').toLowerCase().includes('empresa')).length}
+                    </span>
+                    <Briefcase className="w-4 h-4 text-[#52A8C7]" />
+                  </div>
+                </div>
+
+                <div className="col-span-2 sm:col-span-1 bg-slate-900 border border-slate-800/80 p-4 rounded-2xl space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Estudantes / Outros</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-black text-slate-300">
+                      {userList.filter(u => !u.isAdmin && !u.isBlocked && u.status !== 'blocked' && !String(u.role || u.cargo || '').toLowerCase().includes('recrutador') && !String(u.role || u.cargo || '').toLowerCase().includes('instrutor')).length}
+                    </span>
+                    <BookOpen className="w-4 h-4 text-slate-500" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Block By Email Banner */}
+              <form onSubmit={handleQuickBlockEmail} className="bg-slate-900 border border-rose-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white flex items-center gap-2">
+                      <span>Bloquear E-mail / Impedir Acesso</span>
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[9px] font-black uppercase">Segurança</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      Bloqueie instantaneamente qualquer e-mail (trava login com Google, e-mail/senha e novos cadastros).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <input
+                    type="email"
+                    value={quickBlockEmailInput}
+                    onChange={(e) => setQuickBlockEmailInput(e.target.value)}
+                    placeholder="exemplo@gmail.com"
+                    className="flex-1 sm:w-64 bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isQuickBlocking || !quickBlockEmailInput.trim()}
+                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-black text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0 active:scale-95 shadow-md shadow-rose-900/30"
+                  >
+                    {isQuickBlocking ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Bloquear E-mail</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              {/* Filters & Search Toolbar */}
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={usersSearch}
+                    onChange={(e) => setUsersSearch(e.target.value)}
+                    placeholder="Buscar por nome, email, cargo ou status..."
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-[#52A8C7] rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors"
+                  />
+                  {usersSearch && (
+                    <button 
+                      onClick={() => setUsersSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 custom-scroll text-xs">
+                  {['Todos', 'Ativos', 'Bloqueados', 'Administrador', 'Recrutador', 'Instrutor', 'Moderador', 'Estudante'].map((roleKey) => {
+                    const isSelected = userRoleFilter === roleKey;
+                    return (
+                      <button
+                        key={roleKey}
+                        onClick={() => setUserRoleFilter(roleKey)}
+                        className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer text-xs ${
+                          isSelected 
+                            ? 'bg-[#52A8C7] text-slate-950 shadow-md shadow-[#52A8C7]/20 font-black' 
+                            : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {roleKey}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {loading ? (
-                <div className="py-20 text-center space-y-3">
+                <div className="py-20 text-center space-y-3 bg-slate-900 border border-slate-800 rounded-3xl">
                   <div className="w-9 h-9 border-3 border-[#52A8C7] border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-xs text-slate-400">Carregando usuários...</p>
+                  <p className="text-xs text-slate-400">Sincronizando contas com o banco de dados...</p>
                 </div>
               ) : (
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase text-[10px] font-black tracking-widest">
-                        <th className="py-4 px-6">Nome</th>
-                        <th className="py-4 px-6">Email</th>
-                        <th className="py-4 px-6 text-center">Admin</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/50">
-                      {userList.map((u) => {
-                        console.log("Rendering user:", u);
-                        return (
-                          <tr key={u.id} className="hover:bg-slate-950/40 transition-colors">
-                            <td className="py-4 px-6 font-bold text-slate-100">{u.name}</td>
-                            <td className="py-4 px-6 text-slate-400 font-mono">{u.email}</td>
-                            <td className="py-4 px-6 text-center">
-                              {u.isAdmin ? <CheckCircle className="w-4 h-4 text-emerald-500 mx-auto" /> : <XCircle className="w-4 h-4 text-slate-600 mx-auto" />}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase text-[10px] font-black tracking-widest">
+                          <th className="py-4 px-6">Usuário</th>
+                          <th className="py-4 px-6">Status da Conta</th>
+                          <th className="py-4 px-6">Cargo Atribuído</th>
+                          <th className="py-4 px-6 text-center">Permissão Admin</th>
+                          <th className="py-4 px-6 text-right">Ações Rápidas</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {userList
+                          .filter(u => {
+                            const q = usersSearch.toLowerCase();
+                            const isUserBlocked = Boolean(u.isBlocked || u.status === 'blocked');
+                            const matchesSearch = 
+                              String(u.name || '').toLowerCase().includes(q) ||
+                              String(u.email || '').toLowerCase().includes(q) ||
+                              String(u.role || u.cargo || '').toLowerCase().includes(q) ||
+                              (isUserBlocked && q.includes('bloq')) ||
+                              (!isUserBlocked && q.includes('ativ'));
+
+                            if (!matchesSearch) return false;
+
+                            if (userRoleFilter === 'Todos') return true;
+                            if (userRoleFilter === 'Ativos') return !isUserBlocked;
+                            if (userRoleFilter === 'Bloqueados') return isUserBlocked;
+                            if (userRoleFilter === 'Administrador') return u.isAdmin || String(u.role || u.cargo || '').toLowerCase().includes('admin');
+                            if (userRoleFilter === 'Recrutador') return String(u.role || u.cargo || '').toLowerCase().includes('recrutador') || String(u.role || u.cargo || '').toLowerCase().includes('empresa');
+                            if (userRoleFilter === 'Instrutor') return String(u.role || u.cargo || '').toLowerCase().includes('instrutor') || String(u.role || u.cargo || '').toLowerCase().includes('professor');
+                            if (userRoleFilter === 'Moderador') return String(u.role || u.cargo || '').toLowerCase().includes('moderador');
+                            if (userRoleFilter === 'Estudante') return !u.isAdmin && !isUserBlocked && !String(u.role || u.cargo || '').toLowerCase().includes('recrutador') && !String(u.role || u.cargo || '').toLowerCase().includes('instrutor') && !String(u.role || u.cargo || '').toLowerCase().includes('moderador');
+                            return true;
+                          })
+                          .map((u) => {
+                            const isUserBlocked = Boolean(u.isBlocked || u.status === 'blocked');
+                            const badge = getRoleBadgeStyle(u.role || u.cargo, u.isAdmin);
+                            const BadgeIcon = badge.icon;
+                            const isCurrentUser = (user && (user.id === u.id || user.email === u.email));
+                            const isSavingThis = savingRoleUserId === u.id;
+                            const isProcessingThis = isProcessingActionId === (u.id || u.email);
+
+                            return (
+                              <tr key={u.id || u.email} className={`transition-colors ${isUserBlocked ? 'bg-rose-950/15 hover:bg-rose-950/25' : 'hover:bg-slate-950/40'}`}>
+                                <td className="py-4 px-6">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center font-black text-xs uppercase shadow-sm ${
+                                      isUserBlocked 
+                                        ? 'bg-rose-950/50 border-rose-800/60 text-rose-400' 
+                                        : 'bg-slate-950 border-slate-800 text-[#52A8C7]'
+                                    }`}>
+                                      {String(u.name || u.email || 'U').substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`font-bold text-xs ${isUserBlocked ? 'text-rose-200 line-through' : 'text-slate-100'}`}>
+                                          {u.name || 'Usuário'}
+                                        </span>
+                                        {isCurrentUser && (
+                                          <span className="px-1.5 py-0.5 bg-[#52A8C7]/20 border border-[#52A8C7]/40 text-[#52A8C7] text-[9px] font-black rounded-md uppercase">
+                                            Você
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5">
+                                        <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                                        <span className="text-[11px] font-mono text-slate-400 truncate max-w-[200px]">
+                                          {u.email}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-4 px-6">
+                                  {isUserBlocked ? (
+                                    <div className="space-y-1">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-500/15 border border-rose-500/30 text-rose-400">
+                                        <Lock className="w-3 h-3" />
+                                        <span>Bloqueado</span>
+                                      </span>
+                                      {u.blockReason && (
+                                        <p className="text-[10px] text-rose-300/80 line-clamp-1 max-w-[180px]" title={`Motivo: ${u.blockReason}`}>
+                                          <span className="font-semibold text-rose-400">Motivo:</span> {u.blockReason}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span>Ativo & Liberado</span>
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="py-4 px-6">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => handleOpenEditRoleModal(u)}
+                                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer hover:scale-105 active:scale-95 ${badge.bg}`}
+                                      title="Clique para alterar cargo"
+                                    >
+                                      <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                                      <BadgeIcon className="w-3.5 h-3.5" />
+                                      <span>{u.role || u.cargo || (u.isAdmin ? 'Administrador' : 'Estudante')}</span>
+                                      <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
+                                    </button>
+                                  </div>
+                                </td>
+
+                                <td className="py-4 px-6 text-center">
+                                  <button
+                                    onClick={() => {
+                                      const nextRole = u.isAdmin ? 'Estudante' : 'Administrador';
+                                      handleSaveUserRole(u, nextRole);
+                                    }}
+                                    disabled={isSavingThis || isUserBlocked}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all cursor-pointer active:scale-95 disabled:opacity-40 ${
+                                      u.isAdmin
+                                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
+                                        : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                                    }`}
+                                    title={u.isAdmin ? 'Clique para revogar privilégios de Admin' : 'Clique para conceder privilégios de Admin'}
+                                  >
+                                    {isSavingThis ? (
+                                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                    ) : u.isAdmin ? (
+                                      <>
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span>Administrador</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <XCircle className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>Usuário Padrão</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </td>
+
+                                <td className="py-4 px-6 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {/* Edit Role Button */}
+                                    <button
+                                      onClick={() => handleOpenEditRoleModal(u)}
+                                      className="px-2.5 py-1.5 bg-slate-950 hover:bg-[#52A8C7] text-slate-300 hover:text-slate-950 border border-slate-800 hover:border-[#52A8C7] rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 active:scale-95 shadow-sm"
+                                      title="Definir Cargo"
+                                    >
+                                      <UserCog className="w-3.5 h-3.5" />
+                                      <span className="hidden xl:inline">Cargo</span>
+                                    </button>
+
+                                    {/* Block / Unblock Button */}
+                                    {isUserBlocked ? (
+                                      <button
+                                        onClick={() => handleToggleBlockUser(u, false)}
+                                        disabled={isProcessingThis}
+                                        className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-rose-500/40 hover:border-emerald-600 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 active:scale-95 shadow-sm"
+                                        title="Desbloquear conta de usuário"
+                                      >
+                                        {isProcessingThis ? (
+                                          <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                          <>
+                                            <Unlock className="w-3.5 h-3.5 text-emerald-400" />
+                                            <span>Desbloquear</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setUserToBlockModal(u);
+                                          setBlockReasonInput(u.blockReason || 'Violação das diretrizes da comunidade');
+                                        }}
+                                        disabled={isCurrentUser || isProcessingThis}
+                                        className={`px-2.5 py-1.5 bg-slate-950 text-rose-400 hover:bg-rose-600 hover:text-white border border-rose-500/30 hover:border-rose-600 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 active:scale-95 shadow-sm ${
+                                          isCurrentUser ? 'opacity-30 cursor-not-allowed' : ''
+                                        }`}
+                                        title={isCurrentUser ? "Você não pode bloquear sua própria conta" : "Bloquear conta (impede login e recriação)"}
+                                      >
+                                        <Lock className="w-3.5 h-3.5" />
+                                        <span>Bloquear</span>
+                                      </button>
+                                    )}
+
+                                    {/* Delete Account Button */}
+                                    <button
+                                      onClick={() => setUserToDeleteModal(u)}
+                                      disabled={isCurrentUser || isProcessingThis}
+                                      className={`p-2 bg-slate-950 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center active:scale-95 ${
+                                        isCurrentUser ? 'opacity-30 cursor-not-allowed' : ''
+                                      }`}
+                                      title={isCurrentUser ? "Você não pode apagar sua própria conta" : "Excluir conta permanentemente"}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {userList.length === 0 && (
+                    <div className="py-16 text-center text-slate-400 space-y-2">
+                      <Users className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+                      <p className="text-sm font-bold text-white">Nenhum usuário cadastrado encontrado.</p>
+                      <p className="text-xs text-slate-500">Quando novos usuários criarem contas, eles aparecerão aqui automaticamente.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -1978,12 +2611,12 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                 <div className="p-5 bg-slate-950 rounded-2xl border border-slate-850 space-y-4">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#52A8C7]/15 flex items-center justify-center text-xl font-bold text-[#52A8C7] uppercase select-none">
-                      {selectedApplication.candidateName?.substring(0, 2) || 'C'}
+                      {String(selectedApplication.candidateName || 'C').substring(0, 2)}
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-white">{selectedApplication.candidateName}</h4>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[9px] font-mono font-bold text-slate-500">ID: {selectedApplication.id.substring(0, 8).toUpperCase()}</span>
+                        <span className="text-[9px] font-mono font-bold text-slate-500">ID: {String(selectedApplication.id || '').substring(0, 8).toUpperCase()}</span>
                         <span className="w-1.5 h-1.5 bg-slate-700 rounded-full" />
                         <span className="text-[10px] text-slate-400">Cidade: Araucária - PR</span>
                       </div>
@@ -2559,6 +3192,354 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* MODAL 4: ROLE AND CARGO ASSIGNMENT MODAL */}
+        {editingRoleUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 max-w-xl w-full shadow-2xl relative space-y-6 max-h-[90vh] overflow-y-auto custom-scroll"
+            >
+              {/* Modal Header */}
+              <div className="flex justify-between items-start border-b border-slate-800/80 pb-5">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#52A8C7]/15 border border-[#52A8C7]/30 flex items-center justify-center font-black text-sm text-[#52A8C7] uppercase shadow-inner">
+                    {String(editingRoleUser.name || editingRoleUser.email || 'U').substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-black tracking-widest text-[#52A8C7] block">
+                      Gestão de Permissões & Cargos
+                    </span>
+                    <h3 className="text-lg font-black text-white">{editingRoleUser.name}</h3>
+                    <p className="text-xs font-mono text-slate-400">{editingRoleUser.email}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setEditingRoleUser(null)}
+                  className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Role Presets Selection */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 block">
+                  Selecione o Cargo Oficial:
+                </label>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {[
+                    {
+                      id: 'Administrador',
+                      title: 'Administrador do Sistema',
+                      desc: 'Acesso irrestrito a todas as áreas, relatórios, cadastros e gestão total do sistema.',
+                      icon: ShieldCheck,
+                      color: 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    },
+                    {
+                      id: 'Recrutador / Empresa',
+                      title: 'Recrutador / Empresa',
+                      desc: 'Acesso para cadastrar vagas, gerenciar processos seletivos e triar candidaturas.',
+                      icon: Briefcase,
+                      color: 'border-[#52A8C7]/40 bg-[#52A8C7]/10 text-[#52A8C7]'
+                    },
+                    {
+                      id: 'Instrutor / Professor',
+                      title: 'Instrutor / Professor',
+                      desc: 'Acesso pedagógico para criar e organizar cursos, videoaulas e monitorar alunos.',
+                      icon: GraduationCap,
+                      color: 'border-violet-500/40 bg-violet-500/10 text-violet-300'
+                    },
+                    {
+                      id: 'Moderador',
+                      title: 'Moderador',
+                      desc: 'Acesso de apoio para moderação de perfis, denúncias e suporte à comunidade.',
+                      icon: UserCheck,
+                      color: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    },
+                    {
+                      id: 'Estudante / Candidato',
+                      title: 'Estudante / Candidato',
+                      desc: 'Acesso padrão da plataforma: busca de vagas, cursos, inscrições e visualização de aulas.',
+                      icon: BookOpen,
+                      color: 'border-slate-700 bg-slate-950 text-slate-300'
+                    },
+                    {
+                      id: 'Personalizado',
+                      title: 'Cargo Personalizado...',
+                      desc: 'Digite um cargo específico sob medida (ex: Analista de RH, Coordenador Pedagógico, etc).',
+                      icon: Tag,
+                      color: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
+                    }
+                  ].map((preset) => {
+                    const PresetIcon = preset.icon;
+                    const isSelected = selectedRoleInModal === preset.id || (preset.id === 'Personalizado' && !['Administrador', 'Recrutador / Empresa', 'Instrutor / Professor', 'Moderador', 'Estudante / Candidato'].includes(selectedRoleInModal));
+
+                    return (
+                      <div
+                        key={preset.id}
+                        onClick={() => {
+                          if (preset.id === 'Personalizado') {
+                            setSelectedRoleInModal('Personalizado');
+                          } else {
+                            setSelectedRoleInModal(preset.id);
+                            setCustomRoleInput('');
+                          }
+                        }}
+                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 select-none ${
+                          isSelected 
+                            ? `${preset.color} ring-2 ring-[#52A8C7]/50 shadow-lg` 
+                            : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl mt-0.5 ${isSelected ? 'bg-white/10' : 'bg-slate-900 border border-slate-800'}`}>
+                          <PresetIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-white">{preset.title}</span>
+                            {isSelected && (
+                              <CheckCircle2 className="w-4 h-4 text-[#52A8C7]" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{preset.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Role Input field when selected */}
+              {(selectedRoleInModal === 'Personalizado' || (!['Administrador', 'Recrutador / Empresa', 'Instrutor / Professor', 'Moderador', 'Estudante / Candidato'].includes(selectedRoleInModal))) && (
+                <div className="space-y-1.5 p-4 bg-slate-950 border border-slate-800 rounded-2xl">
+                  <label className="text-[10px] font-black text-[#52A8C7] uppercase tracking-widest pl-1 block">
+                    Nome do Cargo Personalizado
+                  </label>
+                  <input
+                    type="text"
+                    value={customRoleInput}
+                    onChange={(e) => setCustomRoleInput(e.target.value)}
+                    placeholder="Ex: Coordenador Pedagógico, Gestor de RH, etc."
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-[#52A8C7] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex gap-3 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setEditingRoleUser(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-xl text-xs transition-colors cursor-pointer text-center"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(savingRoleUserId)}
+                  onClick={() => {
+                    const finalRole = selectedRoleInModal === 'Personalizado' ? (customRoleInput.trim() || 'Estudante') : selectedRoleInModal;
+                    handleSaveUserRole(editingRoleUser, finalRole);
+                  }}
+                  className="flex-1 bg-[#52A8C7] hover:bg-[#3d91ad] disabled:opacity-50 text-slate-950 font-black py-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#52A8C7]/20 active:scale-95"
+                >
+                  {savingRoleUserId ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Salvando no Banco...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Salvar Cargo no Banco</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* MODAL 5: CONFIRM USER ACCOUNT BLOCKING */}
+        {userToBlockModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl relative space-y-6"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div className="space-y-1 flex-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-rose-400 block">
+                    Bloqueio de Segurança
+                  </span>
+                  <h3 className="text-lg font-black text-white">Bloquear Conta de Usuário?</h3>
+                  <p className="text-xs text-slate-300">
+                    Você está prestes a bloquear o acesso de <strong className="text-white">{userToBlockModal.name}</strong> (<span className="font-mono text-[#52A8C7]">{userToBlockModal.email}</span>).
+                  </p>
+                </div>
+              </div>
+
+              {/* Informative Restrictions box */}
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2.5 text-xs">
+                <div className="flex items-start gap-2 text-rose-300">
+                  <Ban className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                  <p><strong>Acesso Imediatamente Revogado:</strong> O usuário será desconectado e não conseguirá mais efetuar login no aplicativo.</p>
+                </div>
+                <div className="flex items-start gap-2 text-amber-300">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                  <p><strong>Novo Cadastro Impedido:</strong> O e-mail permanece registrado no banco e bloqueado, impedindo a criação de uma nova conta com este mesmo e-mail (informará que o e-mail já está em uso).</p>
+                </div>
+              </div>
+
+              {/* MOTIVO DO BLOQUEIO */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Motivo do Bloqueio:</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Salvo no banco de dados</span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={blockReasonInput}
+                  onChange={(e) => setBlockReasonInput(e.target.value)}
+                  placeholder="Ex: Violação dos termos de uso, conduta inapropriada..."
+                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-rose-500 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors resize-none"
+                />
+                
+                {/* Sugestões rápidas de motivos */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 block">Sugestões rápidas:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Violação das diretrizes',
+                      'Spam / Conta falsa',
+                      'Comportamento inadequado',
+                      'Fraude / Atividade suspeita',
+                      'Solicitação do titular'
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setBlockReasonInput(preset)}
+                        className={`text-[10px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                          blockReasonInput === preset 
+                            ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 font-bold shadow-sm' 
+                            : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToBlockModal(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-xl text-xs transition-colors cursor-pointer text-center"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(isProcessingActionId)}
+                  onClick={() => handleToggleBlockUser(userToBlockModal, true)}
+                  className="flex-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-black py-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-rose-900/30 active:scale-95"
+                >
+                  {isProcessingActionId ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Bloqueando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Confirmar Bloqueio</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* MODAL 6: CONFIRM PERMANENT USER DELETION */}
+        {userToDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl relative space-y-6"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div className="space-y-1 flex-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-rose-400 block">
+                    Exclusão Definitiva
+                  </span>
+                  <h3 className="text-lg font-black text-white">Excluir Conta do Sistema?</h3>
+                  <p className="text-xs text-slate-300">
+                    Tem certeza de que deseja apagar a conta de <strong className="text-white">{userToDeleteModal.name}</strong> (<span className="font-mono text-slate-400">{userToDeleteModal.email}</span>)?
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-rose-950/20 border border-rose-500/30 rounded-2xl space-y-2 text-xs text-rose-200">
+                <p className="font-bold flex items-center gap-2 text-rose-300">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  Esta ação é permanente e irreversível!
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Os dados de perfil, histórico e candidaturas associadas a este usuário serão removidos da base de dados.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToDeleteModal(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-xl text-xs transition-colors cursor-pointer text-center"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(isProcessingActionId)}
+                  onClick={() => handleDeleteUser(userToDeleteModal)}
+                  className="flex-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-black py-3.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-rose-900/30 active:scale-95"
+                >
+                  {isProcessingActionId ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Excluindo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Excluir Definitivamente</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

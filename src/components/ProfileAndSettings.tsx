@@ -28,18 +28,22 @@ import {
   FileText,
   Download,
   MapPin,
-  Heart
+  Heart,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { User, ScreenId, Application, Enrollment, Course } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from '../lib/toast';
+import { useTheme } from '../lib/theme';
+import { isAccountBlocked } from '../lib/blockedAccounts';
 
 interface ProfileAndSettingsProps {
   user: User | null;
   onSetUser: (user: User | null) => void;
   onNavigate: (screen: ScreenId) => void;
   tabType: string;
-  setTabType: (tab: string) => void;
+  setTabType: (tab: any) => void;
   favorites: string[];
   onToggleFavorite: (jobId: string) => Promise<void>;
   applications: Application[];
@@ -52,7 +56,7 @@ interface ProfileAndSettingsProps {
   onNavigateToJobs: () => void;
   onNavigateToCourses: () => void;
   onCancelApplication: (appId: string) => void;
-  completedCourses: string[];
+  completedCourses: any[];
 }
 
 export default function ProfileAndSettings({
@@ -75,6 +79,8 @@ export default function ProfileAndSettings({
   onCancelApplication,
   completedCourses
 }: ProfileAndSettingsProps) {
+  const [theme, toggleTheme] = useTheme();
+
   // Form profile states
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -292,6 +298,13 @@ export default function ProfileAndSettings({
     setIsSaving(true);
 
     try {
+      // Security check: ensure account is not blocked
+      const isBlocked = await isAccountBlocked({ id: user.id, email: user.email });
+      if (isBlocked) {
+        toast.error('Esta conta foi bloqueada pelo administrador.');
+        return;
+      }
+
       const updatedUser: User = {
         ...user,
         name,
@@ -729,6 +742,49 @@ export default function ProfileAndSettings({
                     <span className="text-[10px] md:text-xs font-semibold text-gray-700 group-hover:text-purple-700">Completos</span>
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* APPEARANCE / DARK MODE SECTION */}
+            <div className="bg-white rounded-[12px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="px-4 md:px-6 py-4 md:py-5 border-b border-gray-50 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-sky-50 dark:bg-sky-950/50 text-sky-500 rounded-[12px]">
+                    {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Aparência do Aplicativo</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Alterne entre o tema claro e o modo escuro.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 md:p-6 flex items-center justify-between bg-gray-50/50">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-800">
+                    {theme === 'dark' ? 'Modo Escuro Ativado' : 'Modo Claro Ativado'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {theme === 'dark' ? 'Descanso visual para ambientes escuros' : 'Interface padrão com fundo claro'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className={`relative inline-flex h-7 w-13 rounded-full transition-colors cursor-pointer items-center p-0.5 ${
+                    theme === 'dark' ? 'bg-primary justify-end' : 'bg-gray-300 dark:bg-slate-700 justify-start'
+                  }`}
+                  aria-label="Alternar tema"
+                >
+                  <div className="w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center transition-transform">
+                    {theme === 'dark' ? (
+                      <Moon className="w-3.5 h-3.5 text-sky-500" />
+                    ) : (
+                      <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    )}
+                  </div>
+                </button>
               </div>
             </div>
 

@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Mail, Lock, User, ArrowRight, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { isAccountBlocked, isUserRecordBlocked, fetchAccountBlockReason, extractBlockReasonFromRecord } from '../lib/blockedAccounts';
+import { Mail, Lock, User, ArrowRight, AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ScreenId, User as AppUser } from '../types';
+
+const logo = 'https://www.image2url.com/r2/default/images/1781824138816-3fd9702f-4521-41d2-8411-d8fc61114350.png';
 
 interface AuthScreenProps {
   onNavigate?: (screen: ScreenId) => void;
@@ -21,6 +24,8 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -61,7 +66,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
     if (adminPassword === '06042025') {
       setSuccess('Acesso administrativo autorizado! Carregando painel...');
       const adminUser = {
-        id: 'admin-id-0604',
+        id: '00000000-0000-4000-8000-000000000604',
         name: 'Administrador Orchent',
         email: 'orchel@gmail.com',
         avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
@@ -135,8 +140,8 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
       if (lower.includes('failed to fetch') || lower.includes('network error')) {
         return 'Erro de conexão: Não conseguimos falar com o servidor. Verifique sua internet ou tente novamente em instantes.';
       }
-      if (lower.includes('user already registered') || lower.includes('already exists')) {
-        return 'Este e-mail já está cadastrado.';
+      if (lower.includes('user already registered') || lower.includes('already exists') || lower.includes('já está sendo utilizado') || lower.includes('bloqueado')) {
+        return 'Este e-mail já está sendo utilizado ou encontra-se bloqueado.';
       }
       if (lower.includes('email not confirmed')) {
         return 'Por favor, confirme seu e-mail antes de fazer login.';
@@ -166,12 +171,33 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        // 1. Verificação prévia de bloqueio rigorosa (banco de dados e cache)
+        const isPreBlocked = await isAccountBlocked({ email: cleanEmail });
+        if (isPreBlocked) {
+          const reason = await fetchAccountBlockReason({ email: cleanEmail });
+          setError(`Esta conta foi bloqueada pelo administrador. Motivo: "${reason}". Acesso negado e revogado.`);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (error) throw error;
         
         if (data && data.user) {
+          // 2. Verificação pós-autenticação por ID e e-mail
+          const isPostBlocked = await isAccountBlocked({ id: data.user.id, email: cleanEmail });
+          if (isPostBlocked) {
+            await supabase.auth.signOut();
+            const reason = await fetchAccountBlockReason({ id: data.user.id, email: cleanEmail });
+            setError(`Esta conta foi bloqueada pelo administrador. Motivo: "${reason}". Acesso negado e revogado.`);
+            setLoading(false);
+            return;
+          }
+
           const loggedUser: AppUser = {
             id: data.user.id,
             name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'Usuário',
@@ -189,24 +215,60 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
           }
         }
       } else {
+        // 1. Verificação prévia de cadastro: se o email já existe ou está bloqueado no banco
+        const isBlockedPreReg = await isAccountBlocked({ email: cleanEmail });
+        if (isBlockedPreReg) {
+          const reason = await fetchAccountBlockReason({ email: cleanEmail });
+          setError(`Esta conta/e-mail foi bloqueada pelo administrador. Motivo: "${reason}". Novos cadastros estão impedidos.`);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .ilike('email', cleanEmail)
+            .maybeSingle();
+
+          if (existingUser) {
+            if (isUserRecordBlocked(existingUser)) {
+              const reason = extractBlockReasonFromRecord(existingUser) || await fetchAccountBlockReason({ email: cleanEmail });
+              setError(`Esta conta/e-mail foi bloqueada pelo administrador. Motivo: "${reason}". Novos cadastros estão impedidos.`);
+            } else {
+              setError('Este e-mail já está sendo utilizado ou encontra-se cadastrado.');
+            }
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn('Aviso na verificação pré-cadastro:', e);
+        }
+
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ 
-          email, 
+          email: cleanEmail, 
           password,
           options: {
             emailRedirectTo: window.location.origin,
             data: {
-              full_name: fullName.trim() || (email || '').split('@')[0]
+              full_name: fullName.trim() || cleanEmail.split('@')[0]
             }
           }
         });
-        if (signUpError) throw signUpError;
+        if (signUpError) {
+          const lowerErr = (signUpError.message || '').toLowerCase();
+          if (lowerErr.includes('already registered') || lowerErr.includes('already exists') || lowerErr.includes('duplicate')) {
+            throw new Error('Este e-mail já está sendo utilizado ou encontra-se bloqueado.');
+          }
+          throw signUpError;
+        }
         
         let activeSession = signUpData?.session || (signUpData && 'access_token' in signUpData ? signUpData : null);
         
         // Se a sessão não foi iniciada automaticamente, tentamos fazer o login automático
         if (!activeSession) {
           try {
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
             if (!signInError && (signInData?.session || (signInData && 'access_token' in signInData))) {
               activeSession = signInData.session || (signInData && 'access_token' in signInData ? signInData : null);
             }
@@ -215,13 +277,21 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
           }
         }
         
-        if (activeSession) {
+        if (activeSession && activeSession.user) {
+          const isSessionBlocked = await isAccountBlocked({ id: activeSession.user.id, email: cleanEmail });
+          if (isSessionBlocked) {
+            await supabase.auth.signOut();
+            setError('Esta conta/e-mail foi bloqueada pelo administrador e está permanentemente impedida de criar novos acessos.');
+            setLoading(false);
+            return;
+          }
+
           // Caso com Login Automático / Sessão Ativa (Email confirmation desativado ou mock)
           const userObj = activeSession.user;
           const loggedUser: AppUser = {
             id: userObj.id,
-            name: fullName.trim() || userObj.user_metadata?.full_name || email.split('@')[0],
-            email: email,
+            name: fullName.trim() || userObj.user_metadata?.full_name || cleanEmail.split('@')[0],
+            email: cleanEmail,
             avatarUrl: '',
             bio: '',
             education: 'Nenhuma',
@@ -278,7 +348,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
         <div className="p-4 pb-0 md:p-0 z-10 shrink-0">
           <button 
             onClick={() => onNavigate('landing')}
-            className="p-3 bg-white rounded-full shadow-sm w-fit hover:bg-gray-50 transition-colors cursor-pointer"
+            className="p-3 bg-white rounded-full shadow-sm w-fit hover:bg-gray-50 transition-colors cursor-pointer text-slate-700 border border-slate-100"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
@@ -290,7 +360,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white rounded-[32px] md:rounded-[40px] shadow-[0_-8px_40px_rgba(0,0,0,0.08)] md:shadow-2xl md:shadow-blue-900/5 p-6 md:p-10 border border-gray-100 relative mx-4"
+          className="w-full max-w-md bg-white rounded-[32px] md:rounded-[40px] shadow-[0_10px_40px_rgba(0,0,0,0.06)] p-6 md:p-10 border border-slate-100 relative mx-4"
         >
           {/* Indicador visual simples no topo */}
           <div className="w-12 h-1 bg-gray-100 rounded-full mx-auto mb-6 md:hidden" />
@@ -367,7 +437,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                 </div>
               )}
 
-              <div className="w-full bg-[#52A8C7]/5 border border-[#52A8C7]/10 rounded-2xl p-3 text-[11px] text-slate-600 text-left leading-relaxed mb-6 font-medium">
+              <div className="w-full bg-[#52A8C7]/5 border border-[#52A8C7]/15 rounded-2xl p-3 text-[11px] text-slate-600 text-left leading-relaxed mb-6 font-medium">
                 💡 <span className="font-bold text-[#3d90ad]">Dica anti-spam:</span> Caso não veja o e-mail na entrada principal, certifique-se de olhar sua aba de <strong className="text-slate-800">Promoções, Atualizações, Spam</strong> ou <strong className="text-slate-800">Lixo Eletrônico</strong>. Geralmente ele chega em menos de 10 segundos!
               </div>
 
@@ -376,7 +446,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   type="button"
                   onClick={handleResendConfirmation}
                   disabled={resendLoading}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 text-xs"
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   {resendLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
@@ -393,7 +463,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                     setError(null);
                     setSuccess(null);
                   }}
-                  className="w-full text-slate-400 hover:text-slate-600 text-xs font-semibold py-2 block hover:underline animate-pulse"
+                  className="w-full text-slate-400 hover:text-slate-600 text-xs font-semibold py-2 block hover:underline"
                 >
                   Voltar para a tela de login
                 </button>
@@ -408,22 +478,26 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                     setError(null);
                     setSuccess(null);
                   }}
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 cursor-default select-none ${isAdminMode ? 'bg-amber-500/10' : 'bg-[#52A8C7]/10'}`}
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 cursor-pointer select-none overflow-hidden shadow-xs border border-slate-200/80 transition-transform active:scale-95 ${isAdminMode ? 'bg-amber-500/10' : 'bg-white'}`}
                 >
-                  <User className={`w-7 h-7 ${isAdminMode ? 'text-amber-500' : 'text-[#52A8C7]'}`} />
+                  {isAdminMode ? (
+                    <User className="w-8 h-8 text-amber-500" />
+                  ) : (
+                    <img src={logo} alt="Oportuniza" className="w-full h-full object-cover object-center block" />
+                  )}
                 </div>
                 
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-                  {isAdminMode ? 'Painel Administrativo' : isRecover ? 'Recuperar Senha' : isLogin ? 'Bem-vindo' : 'Criar Conta'}
+                <h1 className="text-2xl font-bold text-gray-900 tracking-tight font-sans">
+                  {isAdminMode ? 'Painel Administrativo' : isRecover ? 'Recuperar Senha' : isLogin ? 'Seja bem-vindo de volta' : 'Crie sua Conta'}
                 </h1>
-                <p className="text-gray-400 mt-2 text-sm">
+                <p className="text-gray-500 mt-1.5 text-xs">
                   {isAdminMode 
                     ? 'Inserir credenciais de administrador' 
                     : isRecover 
-                      ? 'Instruções serão enviadas' 
+                      ? 'Instruções de acesso serão enviadas por e-mail' 
                       : isLogin 
-                        ? 'Acesse as melhores oportunidades' 
-                        : 'Comece sua jornada hoje'
+                        ? 'Acesse suas vagas, cursos e histórico' 
+                        : 'Cadastre-se e inicie sua jornada profissional'
                   }
                 </p>
               </div>
@@ -445,16 +519,16 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   </AnimatePresence>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Código de Acesso Admin</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-amber-500 transition-colors" />
+                    <label className="text-xs font-bold text-amber-700 uppercase tracking-wider ml-1">Código de Acesso Admin</label>
+                    <div className="relative group flex items-center">
+                      <Lock className="absolute left-4 w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
                       <input 
                         type="password"
                         value={adminPassword}
                         onChange={(e) => setAdminPassword(e.target.value)}
                         required
                         placeholder="Digitar código..."
-                        className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 transition-all text-sm font-medium"
+                        className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white transition-all text-sm font-semibold text-slate-900 placeholder:text-slate-400 shadow-xs"
                       />
                     </div>
                   </div>
@@ -462,13 +536,13 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   <button 
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-amber-500/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4 text-sm"
                   >
                     {loading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <span className="text-sm">Acessar Painel Admin</span>
+                        <span>Acessar Painel Admin</span>
                         <ArrowRight className="w-5 h-5" />
                       </>
                     )}
@@ -482,9 +556,9 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                         setError(null);
                         setSuccess(null);
                       }}
-                      className="text-gray-500 text-xs font-bold hover:underline"
+                      className="text-gray-500 text-xs font-bold hover:underline cursor-pointer"
                     >
-                      Voltar ao Login do Aluno
+                      Voltar ao Login de Usuário
                     </button>
                   </div>
                 </form>
@@ -497,10 +571,28 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          className={`${error ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} border px-4 py-3 rounded-xl flex items-start gap-2 text-xs font-medium`}
+                          className={`${
+                            error
+                              ? error.toLowerCase().includes('bloquead') || error.includes('Motivo:')
+                                ? 'bg-rose-50 text-rose-800 border-rose-200 shadow-sm'
+                                : 'bg-red-50 text-red-600 border-red-100'
+                              : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                          } border px-4 py-3.5 rounded-xl flex items-start gap-2.5 text-xs font-medium`}
                         >
-                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                          <div className="flex-1">{error || success}</div>
+                          {error && (error.toLowerCase().includes('bloquead') || error.includes('Motivo:')) ? (
+                            <>
+                              <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                              <div className="flex-1 space-y-1 text-left">
+                                <strong className="block text-rose-900 font-bold text-xs uppercase tracking-wide">Conta Bloqueada</strong>
+                                <p className="text-rose-800 leading-relaxed font-normal">{error}</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                              <div className="flex-1 text-left">{error || success}</div>
+                            </>
+                          )}
                         </motion.div>
 
                         {error && error.includes('limita novas contas') && (
@@ -515,12 +607,9 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                             <ol className="list-decimal pl-4 space-y-1 text-slate-600">
                               <li>Acesse o painel do seu projeto no <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-[#52A8C7] hover:underline font-bold">Supabase</a></li>
                               <li>No menu lateral esquerdo, vá em <span className="font-semibold text-slate-800">Authentication</span> → <span className="font-semibold text-slate-800">Providers</span> → <span className="font-semibold text-slate-800">Email</span></li>
-                              <li>Desative a opção <span className="font-semibold text-slate-800">"Confirm Email"</span> (isso remove a exigência de link de confirmação por e-mail)</li>
-                              <li>Clique em <span className="font-semibold text-slate-800">Save (Salvar)</span> no canto inferior direito</li>
+                              <li>Desative a opção <span className="font-semibold text-slate-800">"Confirm Email"</span></li>
+                              <li>Clique em <span className="font-semibold text-slate-800">Save</span> no canto inferior direito</li>
                             </ol>
-                            <p className="text-[10px] text-slate-500 italic mt-1 font-normal border-t border-blue-100/40 pt-1.5">
-                              Dica: Após salvar, qualquer cadastro novo será ativado instantaneamente e o login será efetuado de forma automática e sem limite de envios por hora!
-                            </p>
                           </motion.div>
                         )}
                       </div>
@@ -533,32 +622,32 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                       animate={{ opacity: 1, height: 'auto' }}
                       className="space-y-1.5"
                     >
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Nome Completo</label>
-                      <div className="relative group">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#52A8C7] transition-colors" />
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">Nome Completo</label>
+                      <div className="relative group flex items-center">
+                        <User className="absolute left-4 w-4 h-4 text-slate-400 group-focus-within:text-[#52A8C7] transition-colors" />
                         <input 
                           type="text"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
                           required
                           placeholder="Seu nome completo"
-                          className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/10 focus:border-[#52A8C7] transition-all text-sm font-medium"
+                          className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/20 focus:border-[#52A8C7] focus:bg-white transition-all text-sm font-semibold text-slate-900 placeholder:text-slate-400 shadow-xs"
                         />
                       </div>
                     </motion.div>
                   )}
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
-                    <div className="relative group">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#52A8C7] transition-colors" />
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">E-MAIL</label>
+                    <div className="relative group flex items-center">
+                      <Mail className="absolute left-4 w-4 h-4 text-slate-400 group-focus-within:text-[#52A8C7] transition-colors" />
                       <input 
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         placeholder="seu@email.com"
-                        className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/10 focus:border-[#52A8C7] transition-all text-sm font-medium"
+                        className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/20 focus:border-[#52A8C7] focus:bg-white transition-all text-sm font-semibold text-slate-900 placeholder:text-slate-400 shadow-xs"
                       />
                     </div>
                   </div>
@@ -566,27 +655,35 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   {!isRecover && (
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center px-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Senha</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">SENHA</label>
                         {isLogin && (
                           <button 
                             type="button"
                             onClick={() => setIsRecover(true)}
-                            className="text-[10px] font-bold text-[#52A8C7] hover:underline"
+                            className="text-xs font-bold text-[#52A8C7] hover:underline cursor-pointer"
                           >
                             Esqueceu?
                           </button>
                         )}
                       </div>
-                      <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#52A8C7] transition-colors" />
+                      <div className="relative group flex items-center">
+                        <Lock className="absolute left-4 w-4 h-4 text-slate-400 group-focus-within:text-[#52A8C7] transition-colors" />
                         <input 
-                          type="password"
+                          type={showPassword ? 'text' : 'password'}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required
                           placeholder="••••••••"
-                          className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/10 focus:border-[#52A8C7] transition-all text-sm font-medium"
+                          className="w-full pl-11 pr-11 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/20 focus:border-[#52A8C7] focus:bg-white transition-all text-sm font-semibold text-slate-900 placeholder:text-slate-400 shadow-xs"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                          aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -597,17 +694,25 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                       animate={{ opacity: 1, height: 'auto' }}
                       className="space-y-1.5"
                     >
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Confirmar Senha</label>
-                      <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#52A8C7] transition-colors" />
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">Confirmar Senha</label>
+                      <div className="relative group flex items-center">
+                        <Lock className="absolute left-4 w-4 h-4 text-slate-400 group-focus-within:text-[#52A8C7] transition-colors" />
                         <input 
-                          type="password"
+                          type={showConfirmPassword ? 'text' : 'password'}
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           required
                           placeholder="••••••••"
-                          className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/10 focus:border-[#52A8C7] transition-all text-sm font-medium"
+                          className="w-full pl-11 pr-11 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#52A8C7]/20 focus:border-[#52A8C7] focus:bg-white transition-all text-sm font-semibold text-slate-900 placeholder:text-slate-400 shadow-xs"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3.5 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                          aria-label={showConfirmPassword ? 'Ocultar senha' : 'Ver senha'}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </motion.div>
                   )}
@@ -615,13 +720,13 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   <button 
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-[#52A8C7] hover:bg-[#3d90ad] text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+                    className="w-full bg-[#52A8C7] hover:bg-[#3d90ad] text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-blue-500/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4 text-sm"
                   >
                     {loading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <span className="text-sm">{isRecover ? 'Enviar Instruções' : isLogin ? 'Entrar Agora' : 'Criar minha Conta'}</span>
+                        <span>{isRecover ? 'Enviar Instruções' : isLogin ? 'Entrar no Oportuniza' : 'Criar minha Conta'}</span>
                         <ArrowRight className="w-5 h-5" />
                       </>
                     )}
@@ -630,10 +735,10 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   {/* Google Login Button */}
                   <div className="relative mt-4">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200"></div>
+                      <div className="w-full border-t border-slate-200"></div>
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-white px-2 text-gray-500">Ou continuar com</span>
+                      <span className="bg-white px-3 text-slate-400 font-semibold">Ou continuar com</span>
                     </div>
                   </div>
 
@@ -641,7 +746,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                     type="button"
                     onClick={handleGoogleLogin}
                     disabled={loading}
-                    className="w-full mt-4 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    className="w-full mt-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs text-sm"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -649,19 +754,19 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                       <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4B4B"/>
                     </svg>
-                    <span className="text-sm">Entrar com Google</span>
+                    <span>Entrar com Google</span>
                   </button>
 
                   <button 
                     type="button"
                     onClick={handleGitHubLogin}
                     disabled={loading}
-                    className="w-full mt-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    className="w-full mt-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs text-sm"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
                     </svg>
-                    <span className="text-sm">Entrar com GitHub</span>
+                    <span>Entrar com GitHub</span>
                   </button>
                 </form>
               )}
@@ -671,7 +776,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                   {isRecover ? (
                     <button 
                       onClick={() => setIsRecover(false)}
-                      className="text-[#52A8C7] text-xs font-bold hover:underline"
+                      className="text-[#52A8C7] text-xs font-bold hover:underline cursor-pointer"
                     >
                       Voltar ao Login
                     </button>
@@ -680,7 +785,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
                       {isLogin ? 'Novo por aqui?' : 'Já possui uma conta?'}
                       <button 
                         onClick={() => setIsLogin(!isLogin)}
-                        className="ml-2 text-[#52A8C7] font-bold hover:underline"
+                        className="ml-2 text-[#52A8C7] font-bold hover:underline cursor-pointer"
                       >
                         {isLogin ? 'Cadastre-se grátis' : 'Faça Login'}
                       </button>

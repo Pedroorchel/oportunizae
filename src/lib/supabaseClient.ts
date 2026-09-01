@@ -1,20 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const rawUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ckzygdwhihybrdzctdup.supabase.co';
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_QHYzyrfocbKo60XS5EFYBA_Js8u-l0O';
 
-// Fallback to the working instance if the environment variable is pointing to the dead host
-const isDeadHost = envUrl.includes('ckzygdwhihybrdzctdup');
+// Sanitize URL to ensure standard Supabase base URL format (without /rest/v1 or trailing slashes)
+const supabaseUrl = rawUrl
+  .trim()
+  .replace(/\/rest\/v1\/?$/i, '')
+  .replace(/\/+$/, '')
+  .trim();
 
-const supabaseUrl = (
-  (!isDeadHost && envUrl) ? envUrl : 'https://sqqiqmzrhmgrtkborskf.supabase.co'
-).trim().replace(/\/+$/, '').replace(/\/rest\/v1\/?$/, '').trim();
+const supabaseAnonKey = rawKey.trim();
 
-const supabaseAnonKey = (
-  (!isDeadHost && envKey) ? envKey : 'sb_publishable_yxogI5YkdGvX_ntUEgXPuA_5-M3d0Fq'
-).trim();
-
-// Direct Supabase Client connected to real database
+// Direct Supabase Client connected to your database
 export const supabase = createClient(
   supabaseUrl, 
   supabaseAnonKey,
@@ -32,3 +30,4 @@ export const supabase = createClient(
 export function isSupabaseUsingDummy() {
   return false;
 }
+

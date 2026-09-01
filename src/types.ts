@@ -39,6 +39,11 @@ export interface User {
   marketingEmailsEnabled?: boolean;
   tiJobsPushEnabled?: boolean;
   isAdmin?: boolean;
+  isBlocked?: boolean;
+  blockReason?: string;
+  status?: 'active' | 'blocked' | string;
+  role?: string;
+  cargo?: string;
   favorites?: string[];
   updatedAt?: string;
 }

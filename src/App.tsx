@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Menu, User as UserIcon, Briefcase, GraduationCap, ChevronRight, Award, LogOut, CheckCircle } from 'lucide-react';
+import { Menu, User as UserIcon, Briefcase, GraduationCap, ChevronRight, Award, LogOut, CheckCircle, Lock, ShieldAlert } from 'lucide-react';
 import { ScreenId, User, Job, Application, Course, Enrollment, UserCourseProgress } from './types';
 import { mockJobs, mockCourses, loadJobsFromSupabase, loadCoursesFromSupabase } from './data';
 import { supabase } from './lib/supabaseClient';
+import { isAccountBlocked, isUserRecordBlocked, fetchAccountBlockReason, extractBlockReasonFromRecord } from './lib/blockedAccounts';
 import { toast } from './lib/toast';
 import ToastContainer from './components/ToastContainer';
 
@@ -14,6 +15,7 @@ import BioScreen from './components/BioScreen';
 import UserAuthScreens from './components/UserAuthScreens';
 import AuthScreen from './components/AuthScreen';
 import AdminPanelScreen from './components/AdminPanelScreen';
+import ErrorBoundary from './components/ErrorBoundary';
 import JobsSection from './components/JobsSection';
 import CoursesSection from './components/CoursesSection';
 import ProfileAndSettings from './components/ProfileAndSettings';
@@ -35,6 +37,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activePerk, setActivePerk] = useState<string | null>(null);
   const [jobsVersion, setJobsVersion] = useState(0);
+  const [blockedNotice, setBlockedNotice] = useState<{ email: string; name?: string; reason?: string } | null>(null);
 
   useEffect(() => {
     if (user?.email) {
@@ -66,7 +69,7 @@ export default function App() {
   const [completedCourses, setCompletedCourses] = useState<UserCourseProgress[]>([]);
 
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && !user.isAdmin) {
       const fetchData = async () => {
         try {
           const [compResult, enrResult, appsResult] = await Promise.all([
@@ -142,6 +145,37 @@ export default function App() {
     }
   }, [user]);
 
+  // Keyboard shortcut listener: Ctrl + Shift + A to navigate to admin panel if user is admin
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isKeyA = e.key === 'a' || e.key === 'A' || e.code === 'KeyA';
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && isKeyA) {
+        const isUserAdmin = Boolean(
+          user && (
+            user.isAdmin ||
+            user.role?.toLowerCase() === 'administrador' ||
+            user.role?.toLowerCase() === 'admin' ||
+            user.cargo?.toLowerCase() === 'administrador' ||
+            user.email?.toLowerCase() === 'pedroorchel12@gmail.com' ||
+            user.email?.toLowerCase() === 'orchel@gmail.com'
+          )
+        );
+
+        if (isUserAdmin) {
+          e.preventDefault();
+          setUser(prev => prev ? { ...prev, isAdmin: true } : prev);
+          setCurrentScreen('admin');
+          toast.info('Acessando painel de administração...');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [user]);
+
   // Synchronize courses changes when admin acts
   useEffect(() => {
     const handleCoursesChanged = () => {
@@ -179,7 +213,7 @@ export default function App() {
   };
 
   const fetchApplications = async () => {
-    if (!user) return;
+    if (!user || user.isAdmin) return;
     try {
       const { data: appsData, error: appsError } = await supabase
         .from('applications')
@@ -245,12 +279,46 @@ export default function App() {
     }
   }, [user, currentScreen]);
 
+  // Real-time watcher: Kick out user immediately if they get blocked while browsing or in another tab
+  useEffect(() => {
+    if (!user) return;
+    const checkActiveUserBlocked = async () => {
+      try {
+        const isBlocked = await isAccountBlocked({ id: user.id, email: user.email });
+        if (isBlocked) {
+          console.warn("Active user is blocked. Logging out immediately:", user.email);
+          await supabase.auth.signOut();
+          setUser(null);
+          setApplications([]);
+          setEnrollments([]);
+          setFavorites([]);
+          setCompletedCourses([]);
+          setBlockedNotice({
+            email: user.email || 'Sua conta',
+            name: user.name || user.email
+          });
+          setCurrentScreen('landing');
+        }
+      } catch (e) {
+        console.warn("Error in checkActiveUserBlocked:", e);
+      }
+    };
+
+    const interval = setInterval(checkActiveUserBlocked, 4000);
+    window.addEventListener('storage', checkActiveUserBlocked);
+    window.addEventListener('focus', checkActiveUserBlocked);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', checkActiveUserBlocked);
+      window.removeEventListener('focus', checkActiveUserBlocked);
+    };
+  }, [user]);
+
   useEffect(() => {
     // Supabase Auth Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // If the event is USER_UPDATED, it might have been triggered by our propio handleSaveProfile.
-      // We don't want to re-fetch and potentially overwrite the current state with old DB data 
-      // until the DB write has definitely finished and replicated.
+      // If the event is USER_UPDATED, it might have been triggered by our proprio handleSaveProfile.
       if (event === 'USER_UPDATED' && user) {
         console.log("Auth event: USER_UPDATED. Skipping full profile re-fetch to avoid race conditions.");
         return;
@@ -258,11 +326,32 @@ export default function App() {
 
       if (session) {
         const supabaseUser = session.user;
+        const cleanEmail = (supabaseUser.email || '').trim().toLowerCase();
+        const userId = supabaseUser.id;
+
+        // 1. CRITICAL GATEKEEPER: Check if user/email is blocked BEFORE setting user state or DB upserts
+        const blocked = await isAccountBlocked({ id: userId, email: cleanEmail });
+        if (blocked) {
+          console.warn("Blocked user attempted login/session (Google or email):", cleanEmail, userId);
+          await supabase.auth.signOut();
+          setUser(null);
+          setApplications([]);
+          setEnrollments([]);
+          setFavorites([]);
+          setCompletedCourses([]);
+          setBlockedNotice({
+            email: cleanEmail || 'Sua conta',
+            name: supabaseUser.user_metadata?.full_name || cleanEmail
+          });
+          setCurrentScreen('landing');
+          setIsInitializing(false);
+          return;
+        }
 
         const initialUser: User = {
           id: supabaseUser.id,
-          name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'Usuário',
-          email: supabaseUser.email || '',
+          name: supabaseUser.user_metadata?.full_name || cleanEmail.split('@')[0] || 'Usuário',
+          email: cleanEmail,
           avatarUrl: supabaseUser.user_metadata?.avatar_url || '',
           bio: '',
           education: 'Nenhuma',
@@ -272,36 +361,55 @@ export default function App() {
           favorites: []
         };
         
-        // Don't reset to skeleton if we already have this user (prevents UI flicker/revert on auth updates)
-        setUser(prev => {
-          if (prev && prev.id === supabaseUser.id) return prev;
-          return initialUser;
-        });
-
-        // Ensure user is saved in DB
-        try {
-          await supabase.from('users').upsert({
-            id: supabaseUser.id,
-            name: initialUser.name,
-            email: initialUser.email
-          }, { onConflict: 'id' });
-        } catch (e) {
-          console.warn("Não foi possível salvar o perfil no banco:", e);
-        }
-        
-        setFavorites(prev => (prev.length > 0 ? prev : []));
-        fetchApplications(); // Fetch applications on login
-
-        // Fetch profile with a 10-second timeout
+        // Fetch profile with database validation
         const fetchProfile = async () => {
           try {
-            const { data, error } = await supabase
+            let { data } = await supabase
               .from('users')
-              .select('id, name, email, avatar_url, bio, education, experience, phone, skills, notifications_enabled, marketing_emails_enabled, updated_at')
+              .select('*')
               .eq('id', supabaseUser.id)
               .maybeSingle();
 
+            if (!data && cleanEmail) {
+              const { data: byEmail } = await supabase
+                .from('users')
+                .select('*')
+                .ilike('email', cleanEmail)
+                .maybeSingle();
+              if (byEmail) {
+                data = byEmail;
+              }
+            }
+
             if (data) {
+              const isBlocked = isUserRecordBlocked(data);
+              if (isBlocked) {
+                console.warn("Usuário bloqueado no banco tentou acessar:", cleanEmail);
+                const blockReason = extractBlockReasonFromRecord(data) || await fetchAccountBlockReason({ id: supabaseUser.id, email: cleanEmail });
+                await supabase.auth.signOut();
+                setUser(null);
+                setApplications([]);
+                setEnrollments([]);
+                setFavorites([]);
+                setCompletedCourses([]);
+                setBlockedNotice({
+                  email: cleanEmail || 'Sua conta',
+                  name: data.name || cleanEmail,
+                  reason: blockReason
+                });
+                setCurrentScreen('landing');
+                return;
+              }
+
+              const isAdminUser = Boolean(
+                data.is_admin ||
+                data.isAdmin ||
+                data.role === 'Administrador' ||
+                data.cargo === 'Administrador' ||
+                cleanEmail === 'pedroorchel12@gmail.com'
+              );
+              const userRole = data.role || data.cargo || (isAdminUser ? 'Administrador' : 'Estudante');
+
               const dbLoadedUser: User = {
                 id: supabaseUser.id,
                 name: data.name || initialUser.name,
@@ -315,7 +423,12 @@ export default function App() {
                 favorites: initialUser.favorites || [],
                 notificationsEnabled: data.notifications_enabled ?? true,
                 marketingEmailsEnabled: data.marketing_emails_enabled ?? false,
-                updatedAt: data.updated_at
+                updatedAt: data.updated_at,
+                isAdmin: isAdminUser,
+                isBlocked: false,
+                status: 'active',
+                role: userRole,
+                cargo: userRole
               };
 
               setUser(dbLoadedUser);
@@ -323,7 +436,27 @@ export default function App() {
                 setFavorites(dbLoadedUser.favorites);
               }
             } else {
-              // Create default row in the 'users' table if it doesn't already exist
+              // Check if user is blocked before attempting default row creation
+              const isStillBlocked = await isAccountBlocked({ id: supabaseUser.id, email: cleanEmail });
+              if (isStillBlocked) {
+                console.warn("Blocked user attempted profile auto-creation:", cleanEmail);
+                const blockReason = await fetchAccountBlockReason({ id: supabaseUser.id, email: cleanEmail });
+                await supabase.auth.signOut();
+                setUser(null);
+                setApplications([]);
+                setEnrollments([]);
+                setFavorites([]);
+                setCompletedCourses([]);
+                setBlockedNotice({
+                  email: cleanEmail || 'Sua conta',
+                  name: initialUser.name || cleanEmail,
+                  reason: blockReason
+                });
+                setCurrentScreen('landing');
+                return;
+              }
+
+              // Create default row in the 'users' table ONLY if user is verified NOT blocked
               try {
                 await supabase
                   .from('users')
@@ -343,6 +476,9 @@ export default function App() {
               }
               setUser(initialUser);
             }
+
+            setFavorites(prev => (prev.length > 0 ? prev : []));
+            fetchApplications();
           } catch (err: any) {
             if (err.message && (err.message === 'Failed to fetch' || err.message.includes('fetch'))) {
               console.warn("Supabase connection failed. Check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
@@ -824,7 +960,7 @@ export default function App() {
         </div>
       )}
       <div className="device-notch"></div>
-      <div className="app-container relative bg-[#F9FAFB] select-none text-gray-800">
+      <div className="app-container relative bg-[var(--bg-light)] select-none text-[var(--text-main)]">
         
         {/* Drawer Sidebar */}
         <SidebarComponent
@@ -888,18 +1024,20 @@ export default function App() {
           )}
 
           {/* Admin Panel (Complete Workspace) */}
-          {user && user.isAdmin && (
-            <AdminPanelScreen 
-              user={user}
-              onLogout={() => {
-                setUser(null);
-                setCurrentScreen('landing');
-              }}
-            />
+          {user && (user.isAdmin || currentScreen === 'admin') && (
+            <ErrorBoundary fallbackTitle="Erro ao carregar o Painel Administrativo">
+              <AdminPanelScreen 
+                user={user}
+                onLogout={() => {
+                  setUser(null);
+                  setCurrentScreen('landing');
+                }}
+              />
+            </ErrorBoundary>
           )}
 
           {/* Main App (Protected Student View) */}
-          {user && !user.isAdmin && (
+          {user && !user.isAdmin && currentScreen !== 'admin' && (
             <>
               {/* Home */}
               {currentScreen === 'home' && (
@@ -1305,6 +1443,59 @@ export default function App() {
             />
           )}
         </>
+      )}
+
+      {/* BLOCKED ACCOUNT NOTICE MODAL */}
+      {blockedNotice && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-[0_25px_60px_rgba(225,29,72,0.3)] relative text-center space-y-5">
+            <div className="w-16 h-16 rounded-3xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto shadow-inner">
+              <Lock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="inline-block px-3 py-1 bg-rose-500/20 text-rose-400 text-[10px] font-black tracking-widest uppercase rounded-full border border-rose-500/30">
+                Acesso Bloqueado
+              </span>
+              <h3 className="text-xl font-black text-white">Conta Suspensa / Bloqueada</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                A conta vinculada ao e-mail <strong className="text-rose-300 font-mono">{blockedNotice.email}</strong> foi bloqueada pelo administrador da plataforma.
+              </p>
+            </div>
+
+            {/* MOTIVO DO BLOQUEIO DESTACADO */}
+            <div className="p-4 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-left space-y-1.5 shadow-sm">
+              <div className="flex items-center gap-1.5 text-rose-400 font-bold text-[10px] uppercase tracking-wider">
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>Motivo Informado Pela Administração:</span>
+              </div>
+              <p className="text-xs font-semibold text-rose-100 bg-rose-500/15 p-2.5 rounded-xl border border-rose-500/20 leading-relaxed break-words">
+                "{blockedNotice.reason || 'Violação das diretrizes da comunidade ou termos de uso'}"
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-left space-y-2 text-[11px] text-slate-300">
+              <p className="flex items-start gap-2 text-slate-300 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
+                <span>O login com Google, e-mail/senha e criação de novas contas com este endereço estão suspensos.</span>
+              </p>
+              <p className="text-slate-400 text-[10px]">
+                Caso acredite que se trate de um engano, entre em contato com a administração da Oportuniza para solicitar a reativação.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setBlockedNotice(null);
+                setCurrentScreen('landing');
+              }}
+              className="w-full py-3.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-rose-900/40 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Entendido / Voltar ao Início</span>
+            </button>
+          </div>
+        </div>
       )}
 
     </div>
