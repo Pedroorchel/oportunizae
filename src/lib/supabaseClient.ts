@@ -26,6 +26,15 @@ export const supabase = createClient(
   }
 );
 
+// Helper to get the full base URL including subpath (e.g. /oportunizae/ on GitHub Pages)
+export function getAppRedirectUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
 // Backward-compatibility helper
 export function isSupabaseUsingDummy() {
   return false;

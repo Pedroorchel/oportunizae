@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, getAppRedirectUrl } from '../lib/supabaseClient';
 import { isAccountBlocked, isUserRecordBlocked, fetchAccountBlockReason, extractBlockReasonFromRecord } from '../lib/blockedAccounts';
 import { Mail, Lock, User, ArrowRight, AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -91,7 +91,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: getAppRedirectUrl(),
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -112,7 +112,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: getAppRedirectUrl(),
         },
       });
       if (error) throw error;
@@ -249,7 +249,7 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
           email: cleanEmail, 
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: getAppRedirectUrl(),
             data: {
               full_name: fullName.trim() || cleanEmail.split('@')[0]
             }

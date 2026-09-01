@@ -77,7 +77,8 @@ export default function ApplyScreen({ job, onBack, onApplyJob, navigate }: Apply
 
   const getWhatsAppLink = () => {
     const phone = '5541996502358';
-    const jobLink = `${window.location.origin}/?job=${job.id}`;
+    const baseUrl = `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '');
+    const jobLink = `${baseUrl}/?job=${job.id}`;
     let text = `Olá! Gostaria de me candidatar para a vaga de *${job.title}* na empresa *${job.company}*.\n\n`;
     text += `*Link da Vaga:* ${jobLink}\n`;
     

@@ -325,6 +325,15 @@ export default function App() {
       }
 
       if (session) {
+        // Clean URL hash containing OAuth access_token after Supabase extracts it
+        if (typeof window !== 'undefined' && window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('error_description'))) {
+          try {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          } catch (e) {
+            console.warn('Could not clean URL hash:', e);
+          }
+        }
+
         const supabaseUser = session.user;
         const cleanEmail = (supabaseUser.email || '').trim().toLowerCase();
         const userId = supabaseUser.id;

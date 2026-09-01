@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User as UserIcon, ArrowLeft, Eye, EyeOff, ShieldCheck, Loader2, ShieldAlert } from 'lucide-react';
 import { ScreenId, User } from '../types';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, getAppRedirectUrl } from '../lib/supabaseClient';
 import { isAccountBlocked, isUserRecordBlocked, fetchAccountBlockReason, extractBlockReasonFromRecord } from '../lib/blockedAccounts';
 
 const logo = 'https://www.image2url.com/r2/default/images/1781824138816-3fd9702f-4521-41d2-8411-d8fc61114350.png';
@@ -60,7 +60,7 @@ export default function UserAuthScreens({
         email: registeredEmail, 
         password: password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: getAppRedirectUrl(),
           data: {
             full_name: name.trim() || (registeredEmail || '').split('@')[0]
           }
@@ -187,7 +187,7 @@ export default function UserAuthScreens({
         email: cleanEmail,
         password: password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: getAppRedirectUrl(),
           data: {
             full_name: name.trim()
           }
@@ -284,7 +284,7 @@ export default function UserAuthScreens({
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin, // You might need a specific reset password page here, but for now this triggers the email.
+        redirectTo: getAppRedirectUrl(),
       });
 
       if (error) {
