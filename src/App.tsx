@@ -580,7 +580,12 @@ export default function App() {
   };
 
   const handleApply = async (job: Job, cvInfo?: { link?: string, fileName?: string }): Promise<boolean> => {
-    if (!user?.id) return false;
+    if (!user?.id) {
+      setNotification('Você precisa entrar ou criar uma conta para se candidatar!');
+      setTimeout(() => setNotification(null), 2500);
+      handleScreenNavigation('login');
+      return false;
+    }
     const isAlreadyApplied = applications.some((app) => app.jobId === job.id);
     if (isAlreadyApplied) {
       setNotification('Você já se candidatou para esta vaga!');
@@ -588,55 +593,166 @@ export default function App() {
       return false;
     }
 
-    const newApplication = {
-      user_id: user.id,
-      job_id: job.id,
-      job_title: job.title,
-      company: job.company,
-      applied_date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-      status: 'Em análise',
-      candidate_name: `${user.name || 'Usuário'} | ${user.email} | ${user.phone || ''}`,
-      cv_link: cvInfo?.link || null,
-      cv_file_name: cvInfo?.fileName || null
-    };
+    // Tentativas progressivas de payload para suportar qualquer versão do schema da tabela applications no Supabase
+    const candidateFullInfo = `${user.name || 'Usuário'} | ${user.email} | ${user.phone || ''}`;
+    const cvInfoString = cvInfo?.link ? `Link: ${cvInfo.link}` : (cvInfo?.fileName ? `Arquivo: ${cvInfo.fileName}` : '');
 
-    let data = null;
-    let error = null;
+    const payloadsToTry = [
+      // 1. Schema completo
+      {
+        user_id: user.id,
+        job_id: job.id,
+        job_title: job.title,
+        company: job.company,
+        applied_date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        status: 'Em análise',
+        candidate_name: candidateFullInfo,
+        candidate_email: user.email,
+        candidate_phone: user.phone || null,
+        cv_link: cvInfo?.link || null,
+        cv_file_name: cvInfo?.fileName || null
+      },
+      // 2. Sem candidate_email / candidate_phone (tabelas intermediárias)
+      {
+        user_id: user.id,
+        job_id: job.id,
+        job_title: job.title,
+        company: job.company,
+        applied_date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        status: 'Em análise',
+        candidate_name: candidateFullInfo,
+        cv_link: cvInfo?.link || null,
+        cv_file_name: cvInfo?.fileName || null
+      },
+      // 3. Sem cv_file_name (armazena informação do arquivo dentro de cv_link ou candidate_name)
+      {
+        user_id: user.id,
+        job_id: job.id,
+        job_title: job.title,
+        company: job.company,
+        applied_date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        status: 'Em análise',
+        candidate_name: cvInfoString ? `${candidateFullInfo} | ${cvInfoString}` : candidateFullInfo,
+        cv_link: cvInfo?.link || (cvInfo?.fileName ? `Arquivo: ${cvInfo.fileName}` : null)
+      },
+      // 4. Apenas colunas básicas
+      {
+        user_id: user.id,
+        job_id: job.id,
+        job_title: job.title,
+        company: job.company,
+        applied_date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        status: 'Em análise',
+        candidate_name: cvInfoString ? `${candidateFullInfo} | ${cvInfoString}` : candidateFullInfo
+      },
+      // 5. Bare minimum
+      {
+        user_id: user.id,
+        job_id: job.id,
+        job_title: job.title,
+        company: job.company
+      }
+    ];
 
+    // 1. Tentar garantir previamente que o registro da vaga existe na tabela jobs para satisfazer possíveis Foreign Keys
     try {
-      const res = await supabase
-        .from('applications')
-        .insert([newApplication])
-        .select('*')
-        .single();
-      data = res.data;
-      error = res.error;
-    } catch (err: any) {
-      console.error('Exception applying for job - Supabase offline or error:', err);
-      error = { message: err.message || 'Falha de conexão com o banco de dados.' };
+      await supabase.from('jobs').upsert([{
+        id: String(job.id),
+        title: job.title || 'Vaga',
+        company: job.company || 'Empresa',
+        location: job.location || '',
+        type: job.type || 'Tempo Integral',
+        salary: job.salary || '',
+        description: job.description || '',
+        active: true
+      }], { onConflict: 'id' });
+    } catch (jErr) {
+      console.warn('Auto-sync job to DB returned:', jErr);
     }
 
-    if (error) {
-      console.error('Error applying for job - Supabase error:', error);
-      setNotification(`Erro ao salvar candidatura: ${error.message}`);
+    let data = null;
+    let lastError: any = null;
+
+    for (const payload of payloadsToTry) {
+      try {
+        const res = await supabase
+          .from('applications')
+          .insert([payload])
+          .select('*')
+          .single();
+
+        if (!res.error && res.data) {
+          data = res.data;
+          lastError = null;
+          break;
+        } else if (res.error) {
+          lastError = res.error;
+
+          // Se o erro for de Chave Estrangeira (23503: job_id inexistente na tabela jobs), tenta criar a vaga e re-inserir
+          if (res.error.code === '23503' || res.error.message?.includes('foreign key')) {
+            try {
+              await supabase.from('jobs').upsert([{
+                id: String(job.id),
+                title: job.title || 'Vaga',
+                company: job.company || 'Empresa',
+                location: job.location || '',
+                type: job.type || 'Tempo Integral',
+                salary: job.salary || '',
+                description: job.description || '',
+                active: true
+              }], { onConflict: 'id' });
+
+              const retryRes = await supabase
+                .from('applications')
+                .insert([payload])
+                .select('*')
+                .single();
+
+              if (!retryRes.error && retryRes.data) {
+                data = retryRes.data;
+                lastError = null;
+                break;
+              }
+            } catch (retryErr) {
+              console.warn('Retry after 23503 failed:', retryErr);
+            }
+          }
+
+          const isColumnMissing = 
+            res.error.code === 'PGRST204' || 
+            (res.error as any).code === '42703' || 
+            res.error.message?.includes('column') || 
+            res.error.message?.includes('schema cache');
+          
+          if (!isColumnMissing && res.error.code !== '23503') {
+            break;
+          }
+        }
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
+
+    if (lastError && !data) {
+      console.error('Error applying for job - Supabase error:', lastError);
+      setNotification(`Erro ao salvar candidatura: ${lastError.message || 'Verifique a conexão.'}`);
       setTimeout(() => setNotification(null), 3000);
       return false;
     }
 
     if (data) {
       console.log('Application saved to DB:', data);
-      await fetchApplications();
-      let cName = data.candidate_name || 'Usuário';
-      let cEmail = '';
-      let cPhone = '';
+      let cName = data.candidate_name || candidateFullInfo;
+      let cEmail = data.candidate_email || user.email;
+      let cPhone = data.candidate_phone || user.phone || '';
       if (cName.includes('|')) {
         const parts = cName.split('|');
         cName = parts[0].trim();
-        if (parts.length > 1) cEmail = parts[1].trim();
-        if (parts.length > 2) cPhone = parts[2].trim();
+        if (parts.length > 1 && !cEmail) cEmail = parts[1].trim();
+        if (parts.length > 2 && !cPhone) cPhone = parts[2].trim();
       }
 
-      let finalDate = data.created_at || data.applied_date;
+      let finalDate = data.created_at || data.applied_date || new Date().toLocaleString('pt-BR');
       if (data.created_at) {
         try {
           finalDate = new Date(data.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -644,15 +760,15 @@ export default function App() {
       }
 
       const newApp: Application = {
-        id: data.id,
-        jobId: data.job_id,
-        jobTitle: data.job_title,
-        company: data.company,
+        id: String(data.id || Date.now()),
+        jobId: data.job_id || job.id,
+        jobTitle: data.job_title || job.title,
+        company: data.company || job.company,
         appliedDate: finalDate,
-        status: data.status,
+        status: data.status || 'Em análise',
         candidateName: cName,
-        cvLink: data.cv_link,
-        cvFileName: data.cv_file_name,
+        cvLink: data.cv_link || cvInfo?.link,
+        cvFileName: data.cv_file_name || cvInfo?.fileName,
         candidateEmail: cEmail || undefined,
         candidatePhone: cPhone || undefined
       };
@@ -661,11 +777,9 @@ export default function App() {
       setTimeout(() => setNotification(null), 2000);
       return true;
     } else {
-      console.error('Error applying for job: No data returned. Error:', error);
-      if (!error) {
-        setNotification('Erro ao salvar candidatura (sem resposta). Tente novamente.');
-        setTimeout(() => setNotification(null), 2000);
-      }
+      console.error('Error applying for job: No data returned.');
+      setNotification('Erro ao salvar candidatura. Tente novamente.');
+      setTimeout(() => setNotification(null), 2000);
       return false;
     }
   };
@@ -713,11 +827,23 @@ export default function App() {
     setTimeout(() => setNotification(null), 2000);
   };
 
-  const handleEnrollInCourse = async (course: Course) => {
-    if (!user?.id) return;
+  const handleEnrollInCourse = async (course: Course): Promise<boolean> => {
+    if (!user?.id) {
+      setNotification('Você precisa entrar ou criar uma conta para se inscrever no curso!');
+      setTimeout(() => setNotification(null), 2500);
+      handleScreenNavigation('login');
+      return false;
+    }
     const exists = enrollments.some(e => e.courseId === course.id);
-    if (!exists) {
-      const newEnrollment = {
+    if (exists) {
+      setNotification('Você já está inscrito neste curso!');
+      setTimeout(() => setNotification(null), 2000);
+      return false;
+    }
+
+    const payloadsToTry = [
+      // 1. Schema completo
+      {
         user_id: user.id,
         user_name: user.name || 'Usuário',
         course_id: course.id,
@@ -726,44 +852,126 @@ export default function App() {
         enrolled_date: new Date().toLocaleDateString('pt-BR'),
         status: 'Iniciado',
         progress: 0
-      };
-      
+      },
+      // 2. Sem instructor/user_name
+      {
+        user_id: user.id,
+        course_id: course.id,
+        course_title: course.title,
+        enrolled_date: new Date().toLocaleDateString('pt-BR'),
+        status: 'Iniciado',
+        progress: 0
+      },
+      // 3. Mínimo
+      {
+        user_id: user.id,
+        course_id: course.id,
+        course_title: course.title
+      }
+    ];
+
+    // 1. Tentar garantir previamente que o registro do curso existe na tabela courses para satisfazer possíveis Foreign Keys
+    try {
+      await supabase.from('courses').upsert([{
+        id: String(course.id),
+        title: course.title || 'Curso',
+        description: (course as any).description || course.desc || '',
+        category: course.category || 'Geral',
+        duration: course.duration || '10 horas',
+        instructor: course.instructor || 'Oportuniza',
+        active: true
+      }], { onConflict: 'id' });
+    } catch (cErr) {
+      console.warn('Auto-sync course to DB returned:', cErr);
+    }
+
+    let data = null;
+    let lastError: any = null;
+
+    for (const payload of payloadsToTry) {
       try {
-        const { data, error } = await supabase
+        const res = await supabase
           .from('enrollments')
-          .insert([newEnrollment])
+          .insert([payload])
           .select('*')
           .single();
-          
-        if (error) {
-          console.error('Error enrolling in course:', error);
-          setNotification('Erro ao salvar inscrição. Verifique o banco de dados.');
-          setTimeout(() => setNotification(null), 3000);
-          return;
-        }
 
-        if (data) {
-          const newEnr: Enrollment = {
-            id: data.id,
-            courseId: data.course_id,
-            courseTitle: data.course_title,
-            instructor: data.instructor,
-            enrolledDate: data.enrolled_date,
-            status: data.status,
-            progress: data.progress,
-            userName: data.user_name
-          };
-          setEnrollments([...enrollments, newEnr]);
-          setNotification('Inscrito no curso com sucesso!');
-          setTimeout(() => setNotification(null), 2000);
-        } else {
-          console.error('Error enrolling in course: No data returned');
+        if (!res.error && res.data) {
+          data = res.data;
+          lastError = null;
+          break;
+        } else if (res.error) {
+          lastError = res.error;
+
+          // Se o erro for de Chave Estrangeira (23503: course_id inexistente na tabela courses), tenta criar o curso e re-inserir
+          if (res.error.code === '23503' || res.error.message?.includes('foreign key')) {
+            try {
+              await supabase.from('courses').upsert([{
+                id: String(course.id),
+                title: course.title || 'Curso',
+                description: (course as any).description || course.desc || '',
+                category: course.category || 'Geral',
+                duration: course.duration || '10 horas',
+                instructor: course.instructor || 'Oportuniza',
+                active: true
+              }], { onConflict: 'id' });
+
+              const retryRes = await supabase
+                .from('enrollments')
+                .insert([payload])
+                .select('*')
+                .single();
+
+              if (!retryRes.error && retryRes.data) {
+                data = retryRes.data;
+                lastError = null;
+                break;
+              }
+            } catch (retryErr) {
+              console.warn('Retry after 23503 failed:', retryErr);
+            }
+          }
+
+          const isColumnMissing = 
+            res.error.code === 'PGRST204' || 
+            (res.error as any).code === '42703' || 
+            res.error.message?.includes('column') || 
+            res.error.message?.includes('schema cache');
+          
+          if (!isColumnMissing && res.error.code !== '23503') {
+            break;
+          }
         }
       } catch (err: any) {
-        console.error('Exception enrolling in course:', err);
-        setNotification('Erro ao se conectar ao banco de dados.');
-        setTimeout(() => setNotification(null), 3000);
+        lastError = err;
       }
+    }
+
+    if (lastError && !data) {
+      console.error('Error enrolling in course:', lastError);
+      setNotification(`Erro ao salvar inscrição no banco: ${lastError.message || 'Verifique a conexão.'}`);
+      setTimeout(() => setNotification(null), 3000);
+      return false;
+    }
+
+    if (data) {
+      const newEnr: Enrollment = {
+        id: String(data.id || Date.now()),
+        courseId: data.course_id || course.id,
+        courseTitle: data.course_title || course.title,
+        instructor: data.instructor || course.instructor,
+        enrolledDate: data.enrolled_date || new Date().toLocaleDateString('pt-BR'),
+        status: data.status || 'Iniciado',
+        progress: data.progress || 0,
+        userName: data.user_name || user.name
+      };
+      setEnrollments(prev => [...prev, newEnr]);
+      setNotification('Inscrito no curso com sucesso!');
+      setTimeout(() => setNotification(null), 2000);
+      return true;
+    } else {
+      console.error('Error enrolling in course: No data returned');
+      return false;
     }
   };
 

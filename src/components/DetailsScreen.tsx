@@ -12,7 +12,7 @@ interface DetailsScreenProps {
   onNavigateToApply?: (job: Job) => void;
   onViewOnMap?: (job: Job) => void;
   onNavigateToCoursePlayer?: (course: Course) => void;
-  onEnrollInCourse?: (course: Course) => void;
+  onEnrollInCourse?: (course: Course) => Promise<boolean> | void;
   enrollments?: Enrollment[];
 }
 
@@ -28,7 +28,8 @@ export default function DetailsScreen({
   onEnrollInCourse,
   enrollments = []
 }: DetailsScreenProps) {
-  const [enrollToast, setEnrollToast] = useState<{ show: boolean; msg: string; type: 'success' | 'info' }>({
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollToast, setEnrollToast] = useState<{ show: boolean; msg: string; type: 'success' | 'info' | 'error' }>({
     show: false,
     msg: '',
     type: 'success'
@@ -256,25 +257,36 @@ export default function DetailsScreen({
 
                   return (
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
                         console.log("Enroll button clicked for:", course.id);
-                        setIsLocalEnrolled(true);
-                        setEnrollToast({
-                          show: true,
-                          msg: "Inscrição realizada com sucesso!",
-                          type: "success"
-                        });
-                        if (onEnrollInCourse) {
-                          onEnrollInCourse(course);
+                        if (enrolling) return;
+                        setEnrolling(true);
+                        try {
+                          if (onEnrollInCourse) {
+                            const success = await onEnrollInCourse(course);
+                            if (success !== false) {
+                              setIsLocalEnrolled(true);
+                              setEnrollToast({
+                                show: true,
+                                msg: "Inscrição realizada com sucesso!",
+                                type: "success"
+                              });
+                              setTimeout(() => {
+                                setEnrollToast(prev => ({ ...prev, show: false }));
+                              }, 2000);
+                            }
+                          }
+                        } catch (e: any) {
+                          console.error("Error during enrollment click:", e);
+                        } finally {
+                          setEnrolling(false);
                         }
-                        setTimeout(() => {
-                          setEnrollToast(prev => ({ ...prev, show: false }));
-                      }, 1200);
-                    }}
-                      className="w-full bg-[#52A8C7] hover:bg-[#3d90ad] text-white font-bold py-4 rounded-[20px] text-sm shadow-sm hover:shadow-md transform hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer border-b-2 border-[#3d90ad]"
+                      }}
+                      disabled={enrolling}
+                      className="w-full bg-[#52A8C7] hover:bg-[#3d90ad] text-white font-bold py-4 rounded-[20px] text-sm shadow-sm hover:shadow-md transform hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer border-b-2 border-[#3d90ad] disabled:opacity-75 disabled:cursor-not-allowed"
                       id="enroll-course-btn"
                     >
-                      Inscrever-se no Curso Grátis
+                      {enrolling ? 'Inscrevendo no curso...' : 'Inscrever-se no Curso Grátis'}
                     </button>
                   );
                 })()}

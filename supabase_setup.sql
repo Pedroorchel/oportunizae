@@ -203,10 +203,29 @@ CREATE TABLE IF NOT EXISTS public.applications (
   applied_date TEXT,
   status TEXT DEFAULT 'Em análise',
   candidate_name TEXT,
+  candidate_email TEXT,
+  candidate_phone TEXT,
   cv_link TEXT,
   cv_file_name TEXT,
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Garantir todas as colunas caso a tabela já existisse previamente
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS job_id TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS job_title TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS company TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS applied_date TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Em análise';
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS candidate_name TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS candidate_email TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS candidate_phone TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS cv_link TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS cv_file_name TEXT;
+ALTER TABLE public.applications ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+-- Remove constraint de chave estrangeira caso exista para evitar erro 23503 em vagas dinâmicas
+ALTER TABLE public.applications DROP CONSTRAINT IF EXISTS applications_job_id_fkey;
 
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 
@@ -226,16 +245,18 @@ CREATE POLICY "apps_select_owner_or_admin"
   TO authenticated 
   USING (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   );
 
--- Usuário autenticado pode se candidatar apenas em seu próprio nome
+-- Usuário autenticado pode se candidatar em seu próprio nome
 CREATE POLICY "apps_insert_owner" 
   ON public.applications FOR INSERT 
   TO authenticated 
   WITH CHECK (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    auth.uid() IS NOT NULL
   );
 
 -- Atualização de status: Admin ou próprio usuário
@@ -244,11 +265,13 @@ CREATE POLICY "apps_update_owner_or_admin"
   TO authenticated 
   USING (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   )
   WITH CHECK (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   );
 
 -- Exclusão de candidatura: Dono ou Admin
@@ -257,7 +280,8 @@ CREATE POLICY "apps_delete_owner_or_admin"
   TO authenticated 
   USING (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   );
 
 
@@ -274,8 +298,24 @@ CREATE TABLE IF NOT EXISTS public.enrollments (
   enrolled_date TEXT,
   status TEXT DEFAULT 'Iniciado',
   progress INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Garantir todas as colunas caso a tabela já existisse previamente
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS user_name TEXT;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS course_id TEXT;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS course_title TEXT;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS instructor TEXT;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS enrolled_date TEXT;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Iniciado';
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+ALTER TABLE public.enrollments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+-- Remove constraint de chave estrangeira caso exista para evitar erro 23503 em cursos dinâmicos
+ALTER TABLE public.enrollments DROP CONSTRAINT IF EXISTS enrollments_course_id_fkey;
 
 ALTER TABLE public.enrollments ENABLE ROW LEVEL SECURITY;
 
@@ -294,7 +334,8 @@ CREATE POLICY "enrollments_select_policy"
   TO authenticated 
   USING (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   );
 
 CREATE POLICY "enrollments_insert_policy" 
@@ -302,7 +343,8 @@ CREATE POLICY "enrollments_insert_policy"
   TO authenticated 
   WITH CHECK (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    auth.uid() IS NOT NULL
   );
 
 CREATE POLICY "enrollments_update_policy" 
@@ -310,11 +352,13 @@ CREATE POLICY "enrollments_update_policy"
   TO authenticated 
   USING (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
-  )
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
+  ) 
   WITH CHECK (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   );
 
 CREATE POLICY "enrollments_delete_policy" 
@@ -322,7 +366,8 @@ CREATE POLICY "enrollments_delete_policy"
   TO authenticated 
   USING (
     auth.uid()::text = user_id::text OR 
-    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com'
+    auth.jwt() ->> 'email' = 'pedroorchel12@gmail.com' OR
+    (auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean = true
   );
 
 

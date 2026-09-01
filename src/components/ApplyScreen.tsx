@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, CheckCircle, UploadCloud, Link as LinkIcon, FileText } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, UploadCloud, Link as LinkIcon, FileText, Loader2 } from 'lucide-react';
 import { Job } from '../types';
 
 interface ApplyScreenProps {
@@ -13,6 +13,7 @@ export default function ApplyScreen({ job, onBack, onApplyJob, navigate }: Apply
   const [cvLink, setCvLink] = useState('');
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,17 +95,30 @@ export default function ApplyScreen({ job, onBack, onApplyJob, navigate }: Apply
   };
 
   const handleConfirmApply = async () => {
-    const success = await onApplyJob(job, {
-      link: cvLink || undefined,
-      fileName: cvFile?.name || undefined
-    });
-    if (success) {
-      setShowNotification(true);
-      setTimeout(() => {
-        setShowNotification(false);
-        navigate('applications');
-      }, 2500);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const success = await onApplyJob(job, {
+        link: cvLink.trim() || undefined,
+        fileName: cvFile?.name || undefined
+      });
+      if (success) {
+        setShowNotification(true);
+        setTimeout(() => {
+          setShowNotification(false);
+          navigate('applications');
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error submitting application:', err);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleWhatsAppApply = async () => {
+    // Also save application into platform before opening WhatsApp
+    handleConfirmApply();
   };
 
   return (
@@ -216,30 +230,43 @@ export default function ApplyScreen({ job, onBack, onApplyJob, navigate }: Apply
             </div>
           </div>
 
-          {cvFile || cvLink ? (
+          {/* Action Buttons Section */}
+          <div className="flex flex-col gap-3 mt-3">
+            {/* Primary Button: Enviar Candidatura */}
+            <button 
+              id="btn-submit-application"
+              onClick={handleConfirmApply}
+              disabled={isSubmitting}
+              className="w-full bg-[#52A8C7] hover:bg-[#3d90ad] active:scale-[0.98] text-white font-bold py-4 rounded-[20px] text-base shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2.5 cursor-pointer border-b-2 border-[#3d90ad] disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                  <span>Enviando candidatura...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5 text-white" />
+                  <span>Enviar Candidatura</span>
+                </>
+              )}
+            </button>
+
+            {/* Optional Companion Button: Enviar pelo WhatsApp */}
             <a 
+              id="btn-whatsapp-application"
               href={getWhatsAppLink()}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={handleConfirmApply}
-              className="w-full bg-[#25D366] hover:bg-[#20ba56] text-white font-bold py-4 rounded-[20px] text-base shadow-sm transform hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 text-center"
+              onClick={handleWhatsAppApply}
+              className="w-full bg-[#25D366] hover:bg-[#20ba56] active:scale-[0.98] text-white font-bold py-3.5 rounded-[20px] text-sm shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer text-center"
             >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.003 5.324 5.328.002 12.008 0c3.237.001 6.278 1.261 8.567 3.55a11.9 11.9 0 0 1 3.42 8.583c-.002 6.677-5.328 11.999-12.008 12.001-2.005-.001-3.98-.502-5.733-1.455L0 24zm6.59-4.846c1.62.963 3.485 1.47 5.402 1.471l.006-.002c5.347-.002 9.697-4.352 9.699-9.699a9.61 9.61 0 0 0-2.772-6.878A9.61 9.61 0 0 0 12.01 1.744c-5.348 0-9.699 4.35-9.702 9.698a9.67 9.67 0 0 0 1.42 5.01l-.998 3.64 3.731-.978l-.134-.142zm11.393-7.234c-.33-.165-1.951-.963-2.253-1.073-.302-.11-.522-.165-.741.165-.22.33-.852 1.073-1.042 1.293-.19.22-.382.247-.712.082a9.01 9.01 0 0 1-2.612-1.612c-.595-.531-1.002-1.189-1.119-1.387-.118-.198-.013-.305.085-.403.088-.088.196-.228.293-.341.1-.115.132-.196.198-.328.065-.132.032-.247-.016-.346-.048-.1-.422-1.018-.578-1.393-.153-.37-.308-.32-.421-.326l-.358-.007c-.123 0-.323.047-.492.23-.169.183-.646.632-.646 1.542 0 .91.662 1.789.754 1.91.092.122 1.303 1.99 3.157 2.793.44.191.784.305 1.052.39a2.53 2.53 0 0 0 1.16.073c.36-.053 1.104-.45 1.258-.885.153-.435.153-.808.107-.886-.046-.078-.17-.123-.5-.288z"/>
               </svg>
-              Enviar pelo WhatsApp
+              <span>Enviar também pelo WhatsApp</span>
             </a>
-          ) : (
-            <button 
-              disabled={true}
-              className="w-full bg-gray-200 text-gray-400 font-bold py-4 rounded-[20px] text-base shadow-sm flex items-center justify-center gap-2 cursor-not-allowed mt-2"
-            >
-              <svg className="w-5 h-5 fill-current grayscale opacity-50" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.003 5.324 5.328.002 12.008 0c3.237.001 6.278 1.261 8.567 3.55a11.9 11.9 0 0 1 3.42 8.583c-.002 6.677-5.328 11.999-12.008 12.001-2.005-.001-3.98-.502-5.733-1.455L0 24zm6.59-4.846c1.62.963 3.485 1.47 5.402 1.471l.006-.002c5.347-.002 9.697-4.352 9.699-9.699a9.61 9.61 0 0 0-2.772-6.878A9.61 9.61 0 0 0 12.01 1.744c-5.348 0-9.699 4.35-9.702 9.698a9.67 9.67 0 0 0 1.42 5.01l-.998 3.64 3.731-.978l-.134-.142zm11.393-7.234c-.33-.165-1.951-.963-2.253-1.073-.302-.11-.522-.165-.741.165-.22.33-.852 1.073-1.042 1.293-.19.22-.382.247-.712.082a9.01 9.01 0 0 1-2.612-1.612c-.595-.531-1.002-1.189-1.119-1.387-.118-.198-.013-.305.085-.403.088-.088.196-.228.293-.341.1-.115.132-.196.198-.328.065-.132.032-.247-.016-.346-.048-.1-.422-1.018-.578-1.393-.153-.37-.308-.32-.421-.326l-.358-.007c-.123 0-.323.047-.492.23-.169.183-.646.632-.646 1.542 0 .91.662 1.789.754 1.91.092.122 1.303 1.99 3.157 2.793.44.191.784.305 1.052.39a2.53 2.53 0 0 0 1.16.073c.36-.053 1.104-.45 1.258-.885.153-.435.153-.808.107-.886-.046-.078-.17-.123-.5-.288z"/>
-              </svg>
-              Enviar pelo WhatsApp
-            </button>
-          )}
+          </div>
         </div>
       </div>
 
