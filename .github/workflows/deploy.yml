@@ -28,13 +28,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
-      - name: Build project
-        run: npm run build
+      - name: Build frontend for GitHub Pages
+        run: npx vite build
 
       - name: Copy index.html to 404.html for SPA routing
         run: cp dist/index.html dist/404.html
@@ -50,3 +49,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
