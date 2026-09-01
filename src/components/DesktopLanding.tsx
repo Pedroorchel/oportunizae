@@ -87,12 +87,12 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
   });
 
   return (
-    <div className="w-full min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-primary/20 selection:text-primary relative antialiased">
+    <div className="w-full min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-primary/20 selection:text-primary relative antialiased transition-colors duration-200">
       
       {/* ========================================================================= */}
       {/* 1. TOP STICKY HEADER WITH REFINED GLASSMORPHISM                          */}
       {/* ========================================================================= */}
-      <header className="w-full bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-40 px-8 py-3.5 shadow-xs">
+      <header className="w-full bg-white/95 dark:bg-[#0B1120]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-40 px-8 py-3.5 shadow-xs transition-colors">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Araucária Seal */}
@@ -100,35 +100,35 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
             onClick={() => onNavigate('landing')} 
             className="flex items-center gap-3.5 cursor-pointer group select-none"
           >
-            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white border border-slate-200/90 shadow-2xs p-0.5 group-hover:scale-105 transition-all flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 shadow-2xs p-0.5 group-hover:scale-105 transition-all flex items-center justify-center">
               <img src={logo} alt="Oportuniza Araucária" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-black text-xl text-slate-950 tracking-tight">Oportuniza</span>
+                <span className="font-black text-xl text-slate-950 dark:text-white tracking-tight">Oportuniza</span>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md">
                   Araucária
                 </span>
               </div>
-              <span className="text-[10px] text-slate-600 font-medium -mt-0.5">Empregabilidade & Qualificação Gratuita</span>
+              <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium -mt-0.5">Empregabilidade & Qualificação Gratuita</span>
             </div>
           </div>
 
           {/* Quick Nav Anchors */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs font-bold text-slate-600">
-            <a href="#como-funciona" className="hover:text-primary transition-colors flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-7 text-xs font-bold text-slate-600 dark:text-slate-300">
+            <a href="#como-funciona" className="hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1">
               <Compass className="w-3.5 h-3.5" /> Como Funciona
             </a>
-            <a href="#pilares-secao" className="hover:text-primary transition-colors flex items-center gap-1">
+            <a href="#pilares-secao" className="hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-primary" /> Recursos
             </a>
-            <a href="#comparativo-secao" className="hover:text-primary transition-colors flex items-center gap-1">
+            <a href="#comparativo-secao" className="hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Comparativo
             </a>
-            <a href="#depoimentos-secao" className="hover:text-primary transition-colors flex items-center gap-1">
+            <a href="#depoimentos-secao" className="hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1">
               <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> Depoimentos
             </a>
-            <a href="#faq-secao" className="hover:text-primary transition-colors">
+            <a href="#faq-secao" className="hover:text-primary dark:hover:text-primary transition-colors">
               Dúvidas
             </a>
           </nav>
@@ -137,7 +137,7 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => onNavigate('login')}
-              className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-primary rounded-xl transition-all cursor-pointer hover:bg-slate-100/70"
+              className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-primary rounded-xl transition-all cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/70"
             >
               Já tenho conta (Entrar)
             </button>
@@ -157,15 +157,15 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 2. HERO SECTION - CENTERED HIGH-CONVERTING LAYOUT                        */}
       {/* ========================================================================= */}
-      <section className="w-full px-6 sm:px-8 pt-12 pb-20 bg-gradient-to-b from-[#EEF7FC] via-[#F4F9FD] to-[#F8FAFC] relative overflow-hidden border-b border-slate-200/60">
+      <section className="w-full px-6 sm:px-8 pt-12 pb-20 bg-gradient-to-b from-[#EEF7FC] via-[#F4F9FD] to-[#F8FAFC] dark:from-[#0B1120] dark:via-[#0F172A] dark:to-[#0B1120] relative overflow-hidden border-b border-slate-200/60 dark:border-slate-800 transition-colors">
         
         {/* Background Subtle Tech Grid */}
-        <div className="absolute inset-0 bg-[radial-gradient(#4FA2C0_1px,transparent_1px)] [background-size:24px_24px] opacity-15 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(#4FA2C0_1px,transparent_1px)] [background-size:24px_24px] opacity-15 dark:opacity-20 pointer-events-none"></div>
 
         <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-6 relative z-10">
           
           {/* Trust badge */}
-          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white border border-primary/30 text-primary text-xs font-bold shadow-2xs">
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white dark:bg-[#131E32] border border-primary/30 dark:border-primary/40 text-primary dark:text-[#52B4D8] text-xs font-bold shadow-2xs">
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -174,16 +174,16 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           </div>
 
           {/* Main Headline */}
-          <h1 className="text-3xl sm:text-5xl lg:text-[52px] font-black text-slate-950 tracking-tight leading-[1.14] max-w-3xl">
+          <h1 className="text-3xl sm:text-5xl lg:text-[52px] font-black text-slate-950 dark:text-white tracking-tight leading-[1.14] max-w-3xl">
             Conquiste sua vaga em Araucária <br className="hidden sm:inline" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-[#3B82F6] to-[#6C63FF]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-[#3B82F6] to-[#6C63FF] dark:from-[#52B4D8] dark:via-[#60A5FA] dark:to-[#818CF8]">
               mesmo sem ter experiência prévia.
             </span>
           </h1>
 
           {/* Subheadline */}
-          <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl font-normal">
-            Conecte-se a vagas reais de <strong>Estágio, Jovem Aprendiz e CLT</strong> nas empresas da nossa cidade. Estude com <strong>minicursos gratuitos com certificado em PDF</strong> e treine respostas com o <strong>Mentor IA de Entrevistas</strong>.
+          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl font-normal">
+            Conecte-se a vagas reais de <strong className="text-slate-800 dark:text-white">Estágio, Jovem Aprendiz e CLT</strong> nas empresas da nossa cidade. Estude com <strong className="text-slate-800 dark:text-white">minicursos gratuitos com certificado em PDF</strong> e treine respostas com o <strong className="text-slate-800 dark:text-white">Mentor IA de Entrevistas</strong>.
           </p>
 
           {/* Primary Action Buttons (Centered) */}
@@ -201,7 +201,7 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
                 const elem = document.getElementById('como-funciona');
                 elem?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 text-sm font-bold border border-slate-300/80 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white dark:bg-[#131E32] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-bold border border-slate-300/80 dark:border-slate-700 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <Compass className="w-4 h-4 text-primary" />
               <span>Como Funciona o Portal</span>
@@ -209,31 +209,31 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           </div>
 
           {/* Friction Reducers (Centered) */}
-          <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-8 text-xs text-slate-500 font-semibold pt-1">
+          <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-8 text-xs text-slate-500 dark:text-slate-400 font-semibold pt-1">
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-teal-600" /> Sem mensalidade
+              <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Sem mensalidade
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-teal-600" /> Cadastro em 60 segundos
+              <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Cadastro em 60 segundos
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-teal-600" /> Certificado em PDF na hora
+              <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Certificado em PDF na hora
             </span>
           </div>
 
           {/* Hero Live Stats Bar (Centered) */}
-          <div className="grid grid-cols-3 gap-4 sm:gap-8 pt-8 mt-2 border-t border-slate-200/90 w-full max-w-xl">
+          <div className="grid grid-cols-3 gap-4 sm:gap-8 pt-8 mt-2 border-t border-slate-200/90 dark:border-slate-800 w-full max-w-xl">
             <div className="flex flex-col items-center">
-              <span className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">+1.240</span>
-              <span className="text-xs text-slate-500 font-medium mt-0.5">Jovens cadastrados</span>
+              <span className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight">+1.240</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Jovens cadastrados</span>
             </div>
-            <div className="flex flex-col items-center border-x border-slate-200 px-3">
+            <div className="flex flex-col items-center border-x border-slate-200 dark:border-slate-800 px-3">
               <span className="text-2xl sm:text-3xl font-black text-primary tracking-tight">+860</span>
-              <span className="text-xs text-slate-500 font-medium mt-0.5">Certificados gerados</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Certificados gerados</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-2xl sm:text-3xl font-black text-teal-600 tracking-tight">4.9 / 5.0</span>
-              <span className="text-xs text-slate-500 font-medium mt-0.5">Avaliação da comunidade</span>
+              <span className="text-2xl sm:text-3xl font-black text-teal-600 dark:text-teal-400 tracking-tight">4.9 / 5.0</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Avaliação da comunidade</span>
             </div>
           </div>
 
@@ -243,17 +243,17 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 3. COMO FUNCIONA EM 3 PASSOS SIMPLES                                      */}
       {/* ========================================================================= */}
-      <section id="como-funciona" className="w-full px-8 py-16 bg-white border-b border-slate-200/80">
+      <section id="como-funciona" className="w-full px-8 py-16 bg-white dark:bg-[#131E32] border-b border-slate-200/80 dark:border-slate-800 transition-colors">
         <div className="max-w-6xl mx-auto flex flex-col gap-12">
           
           <div className="text-center flex flex-col items-center gap-2 max-w-2xl mx-auto">
             <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
               Passo a Passo Simples
             </span>
-            <h2 className="text-3xl font-black text-slate-950 tracking-tight">
+            <h2 className="text-3xl font-black text-slate-950 dark:text-white tracking-tight">
               Como funciona o Oportuniza Araucária
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               Três passos práticos para sair do zero e conquistar sua vaga no mercado de trabalho.
             </p>
           </div>
@@ -261,34 +261,34 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             
             {/* Step 1 */}
-            <div className="p-8 rounded-3xl bg-[#F8FAFC] border border-slate-200 flex flex-col gap-4 text-left relative group hover:border-primary/50 transition-all">
+            <div className="p-8 rounded-3xl bg-[#F8FAFC] dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 flex flex-col gap-4 text-left relative group hover:border-primary/50 transition-all">
               <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-lg shadow-xs">
                 1
               </div>
-              <h3 className="text-lg font-black text-slate-950">Cadastre seu Perfil Grátis</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-black text-slate-950 dark:text-white">Cadastre seu Perfil Grátis</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Crie sua conta em menos de 1 minuto. Não exigimos histórico profissional na carteira e nem cobramos qualquer mensalidade.
               </p>
             </div>
 
             {/* Step 2 */}
-            <div className="p-8 rounded-3xl bg-[#F8FAFC] border border-slate-200 flex flex-col gap-4 text-left relative group hover:border-teal-500/50 transition-all">
+            <div className="p-8 rounded-3xl bg-[#F8FAFC] dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 flex flex-col gap-4 text-left relative group hover:border-teal-500/50 transition-all">
               <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-black text-lg shadow-xs">
                 2
               </div>
-              <h3 className="text-lg font-black text-slate-950">Faça Minicursos com Certificado</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-black text-slate-950 dark:text-white">Faça Minicursos com Certificado</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Assista a aulas práticas e rápidas de Excel e Estruturação de Currículo. Emita seu certificado oficial em PDF na hora com código de autenticidade.
               </p>
             </div>
 
             {/* Step 3 */}
-            <div className="p-8 rounded-3xl bg-[#F8FAFC] border border-slate-200 flex flex-col gap-4 text-left relative group hover:border-brand-purple/50 transition-all">
+            <div className="p-8 rounded-3xl bg-[#F8FAFC] dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 flex flex-col gap-4 text-left relative group hover:border-brand-purple/50 transition-all">
               <div className="w-12 h-12 rounded-2xl bg-brand-purple text-white flex items-center justify-center font-black text-lg shadow-xs">
                 3
               </div>
-              <h3 className="text-lg font-black text-slate-950">Candidate-se & Treine com IA</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-black text-slate-950 dark:text-white">Candidate-se & Treine com IA</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Envie seu currículo diretamente para as vagas abertas em Araucária e simule perguntas reais de RH com o Mentor de Inteligência Artificial.
               </p>
             </div>
@@ -301,17 +301,17 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 4. OS 4 PILARES DA PLATAFORMA                                              */}
       {/* ========================================================================= */}
-      <section id="pilares-secao" className="w-full px-8 py-16 bg-[#F8FAFC]">
+      <section id="pilares-secao" className="w-full px-8 py-16 bg-[#F8FAFC] dark:bg-[#0B1120] transition-colors">
         <div className="max-w-6xl mx-auto flex flex-col gap-12">
           
           <div className="text-center flex flex-col items-center gap-2 max-w-2xl mx-auto">
             <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
               Recursos Completos
             </span>
-            <h2 className="text-3xl font-black text-slate-950 tracking-tight">
+            <h2 className="text-3xl font-black text-slate-950 dark:text-white tracking-tight">
               Tudo o que você precisa em uma única plataforma
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               Desenvolvido especialmente para as necessidades dos candidatos e empresas de Araucária.
             </p>
           </div>
@@ -319,45 +319,45 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             
             {/* Pilar 1 */}
-            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-primary flex items-center justify-center">
+            <div className="p-6 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-primary flex items-center justify-center">
                 <Briefcase className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-950">Vagas Locais Verificadas</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-base font-bold text-slate-950 dark:text-white">Vagas Locais Verificadas</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Oportunidades em comércios, indústrias e clínicas de Araucária filtradas por bairros como Centro, Costeira e Polo Industrial.
               </p>
             </div>
 
             {/* Pilar 2 */}
-            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+            <div className="p-6 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 flex items-center justify-center">
                 <GraduationCap className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-950">Cursos Gratuitos</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-base font-bold text-slate-950 dark:text-white">Cursos Gratuitos</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Capacitações práticas em ferramentas exigidas pelo mercado de trabalho com linguagem simples e direta.
               </p>
             </div>
 
             {/* Pilar 3 */}
-            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-brand-purple flex items-center justify-center">
+            <div className="p-6 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-brand-purple flex items-center justify-center">
                 <BrainCircuit className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-950">Mentor IA de Entrevistas</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-base font-bold text-slate-950 dark:text-white">Mentor IA de Entrevistas</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Simule perguntas reais de recrutadores, descubra seus pontos fortes e receba dicas de postura para não travar na entrevista.
               </p>
             </div>
 
             {/* Pilar 4 */}
-            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="p-6 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col gap-3.5 hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center">
                 <Award className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-950">Certificados Oficiais</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h3 className="text-base font-bold text-slate-950 dark:text-white">Certificados Oficiais</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Documentos autênticos em PDF com código de verificação para comprovar suas habilidades aos recrutadores.
               </p>
             </div>
@@ -368,19 +368,19 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. SEÇÃO DE DOR vs. SOLUÇÃO: OPORTUNIZA vs MÉTODOS ANTIGOS                */}
+      {/* 5. SEÇÃO DE DOR vs. SOLUÇÃO: OPORTUNIZA vs MÉTODOS ANTIGOS                */}
       {/* ========================================================================= */}
-      <section id="comparativo-secao" className="w-full px-8 py-16 bg-[#F8FAFC]">
+      <section id="comparativo-secao" className="w-full px-8 py-16 bg-[#F8FAFC] dark:bg-[#0B1120] transition-colors">
         <div className="max-w-6xl mx-auto flex flex-col gap-10">
           
           <div className="text-center flex flex-col items-center gap-2 max-w-2xl mx-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-600 bg-rose-50 border border-rose-200 px-3 py-1 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 px-3 py-1 rounded-full">
               Por Que o Oportuniza Funciona?
             </span>
-            <h2 className="text-3xl font-black text-slate-950 tracking-tight">
+            <h2 className="text-3xl font-black text-slate-950 dark:text-white tracking-tight">
               Compare a sua busca por emprego
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               Veja a diferença prática entre os métodos tradicionais e o nosso portal gratuito.
             </p>
           </div>
@@ -389,65 +389,65 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* BAD: Old Methods */}
-            <div className="p-8 rounded-3xl bg-white border border-rose-200/80 shadow-2xs flex flex-col gap-5 relative overflow-hidden">
+            <div className="p-8 rounded-3xl bg-white dark:bg-[#131E32] border border-rose-200/80 dark:border-rose-900/40 shadow-2xs flex flex-col gap-5 relative overflow-hidden">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                   <XCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Procurando Emprego Sozinho</h3>
-                  <p className="text-xs text-rose-700 font-medium">Método tradicional cansativo e sem retorno</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Procurando Emprego Sozinho</h3>
+                  <p className="text-xs text-rose-700 dark:text-rose-400 font-medium">Método tradicional cansativo e sem retorno</p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3.5 text-xs text-slate-600">
+              <div className="flex flex-col gap-3.5 text-xs text-slate-600 dark:text-slate-300">
                 <div className="flex items-start gap-2.5">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <span><strong>Currículos sem resposta:</strong> Envia dezenas de e-mails genéricos sem saber se o recrutador chegou a abrir.</span>
+                  <span><strong className="text-slate-800 dark:text-white">Currículos sem resposta:</strong> Envia dezenas de e-mails genéricos sem saber se o recrutador chegou a abrir.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <span><strong>Bloqueio por falta de experiência:</strong> Desiste das vagas porque quase todas pedem comprovante na carteira.</span>
+                  <span><strong className="text-slate-800 dark:text-white">Bloqueio por falta de experiência:</strong> Desiste das vagas porque quase todas pedem comprovante na carteira.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <span><strong>Cursos pagos caros:</strong> Precisa pagar mensalidades pesadas só para conseguir um certificado simples.</span>
+                  <span><strong className="text-slate-800 dark:text-white">Cursos pagos caros:</strong> Precisa pagar mensalidades pesadas só para conseguir um certificado simples.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <span><strong>Nervosismo e travas na entrevista:</strong> Chega na entrevista sem nunca ter treinado e perde a chance por insegurança.</span>
+                  <span><strong className="text-slate-800 dark:text-white">Nervosismo e travas na entrevista:</strong> Chega na entrevista sem nunca ter treinado e perde a chance por insegurança.</span>
                 </div>
               </div>
             </div>
 
             {/* GOOD: With Oportuniza */}
-            <div className="p-8 rounded-3xl bg-gradient-to-br from-white via-blue-50/40 to-teal-50/40 border-2 border-primary/50 shadow-md flex flex-col gap-5 relative overflow-hidden">
+            <div className="p-8 rounded-3xl bg-gradient-to-br from-white via-blue-50/40 to-teal-50/40 dark:from-[#131E32] dark:via-blue-950/20 dark:to-teal-950/20 border-2 border-primary/50 shadow-md flex flex-col gap-5 relative overflow-hidden">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shadow-xs">
                   <CheckCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Com o Oportuniza Araucária</h3>
-                  <p className="text-xs text-primary font-bold">100% Gratuito, Direto e Focado na Cidade</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Com o Oportuniza Araucária</h3>
+                  <p className="text-xs text-primary dark:text-[#52B4D8] font-bold">100% Gratuito, Direto e Focado na Cidade</p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3.5 text-xs text-slate-700">
+              <div className="flex flex-col gap-3.5 text-xs text-slate-700 dark:text-slate-300">
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                  <span><strong>Vagas para 1º Emprego e Aprendiz:</strong> Oportunidades em empresas locais que valorizam candidatos motivados.</span>
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                  <span><strong className="text-slate-900 dark:text-white">Vagas para 1º Emprego e Aprendiz:</strong> Oportunidades em empresas locais que valorizam candidatos motivados.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                  <span><strong>Certificados Oficiais em PDF Gratuitos:</strong> Cursos rápidos de Excel e Currículo com emissão imediata.</span>
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                  <span><strong className="text-slate-900 dark:text-white">Certificados Oficiais em PDF Gratuitos:</strong> Cursos rápidos de Excel e Currículo com emissão imediata.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                  <span><strong>Mentor IA para Simular Entrevistas:</strong> Treine suas respostas antes de ir falar com o recrutador e chegue confiante.</span>
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                  <span><strong className="text-slate-900 dark:text-white">Mentor IA para Simular Entrevistas:</strong> Treine suas respostas antes de ir falar com o recrutador e chegue confiante.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                  <span><strong>Envio Direto sem Intermediários:</strong> Candidatura simplificada com seu perfil já formatado profissionalmente.</span>
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                  <span><strong className="text-slate-900 dark:text-white">Envio Direto sem Intermediários:</strong> Candidatura simplificada com seu perfil já formatado profissionalmente.</span>
                 </div>
               </div>
 
@@ -470,17 +470,17 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 6. PROVA SOCIAL & DEPOIMENTOS DE CANDIDATOS REAIS EM ARAUCÁRIA            */}
       {/* ========================================================================= */}
-      <section id="depoimentos-secao" className="w-full px-8 py-16 bg-[#F8FAFC]">
+      <section id="depoimentos-secao" className="w-full px-8 py-16 bg-[#F8FAFC] dark:bg-[#0B1120] transition-colors">
         <div className="max-w-6xl mx-auto flex flex-col gap-10">
           
           <div className="text-center flex flex-col items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
               Resultados Reais
             </span>
-            <h2 className="text-3xl font-black text-slate-950 tracking-tight">
+            <h2 className="text-3xl font-black text-slate-950 dark:text-white tracking-tight">
               Quem usa o Oportuniza conquista sua vaga
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               Histórias de jovens e profissionais que conseguiram emprego e qualificação em Araucária.
             </p>
           </div>
@@ -488,69 +488,69 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Depoimento 1 */}
-            <div className="p-7 rounded-3xl bg-white border border-slate-200/90 shadow-2xs flex flex-col justify-between gap-5">
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200/90 dark:border-slate-800 shadow-2xs flex flex-col justify-between gap-5">
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-1 text-amber-500">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed italic">
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed italic">
                   "Eu não sabia o que colocar no currículo porque nunca tinha trabalhado de carteira assinada. Fiz o curso de currículo e treinei as perguntas com o Mentor IA. Passei na entrevista de Jovem Aprendiz na Costeira!"
                 </p>
               </div>
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Lucas Mendes, 17 anos</h4>
-                  <span className="text-[11px] text-slate-500">Costeira • Jovem Aprendiz</span>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">Lucas Mendes, 17 anos</h4>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Costeira • Jovem Aprendiz</span>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 px-2 py-0.5 rounded-md">
                   Contratado
                 </span>
               </div>
             </div>
 
             {/* Depoimento 2 */}
-            <div className="p-7 rounded-3xl bg-white border border-slate-200/90 shadow-2xs flex flex-col justify-between gap-5">
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200/90 dark:border-slate-800 shadow-2xs flex flex-col justify-between gap-5">
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-1 text-amber-500">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed italic">
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed italic">
                   "Precisava de horas complementares na faculdade e de certificado de Excel para conseguir meu estágio. As aulas foram super objetivas e o certificado saiu na mesma hora em PDF com código de verificação."
                 </p>
               </div>
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Beatriz Silva, 20 anos</h4>
-                  <span className="text-[11px] text-slate-500">Centro • Estágio de Administração</span>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">Beatriz Silva, 20 anos</h4>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Centro • Estágio de Administração</span>
                 </div>
-                <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/50 px-2 py-0.5 rounded-md">
                   Certificada
                 </span>
               </div>
             </div>
 
             {/* Depoimento 3 */}
-            <div className="p-7 rounded-3xl bg-white border border-slate-200/90 shadow-2xs flex flex-col justify-between gap-5">
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#131E32] border border-slate-200/90 dark:border-slate-800 shadow-2xs flex flex-col justify-between gap-5">
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-1 text-amber-500">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed italic">
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed italic">
                   "Estava há 6 meses procurando emprego no Polo Industrial de Araucária. Pelo Oportuniza me candidatei direto na vaga de montagem e recebi o retorno do RH em menos de 1 semana."
                 </p>
               </div>
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Rodrigo F., 22 anos</h4>
-                  <span className="text-[11px] text-slate-500">Polo Industrial • CLT Auxiliar</span>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">Rodrigo F., 22 anos</h4>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Polo Industrial • CLT Auxiliar</span>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 px-2 py-0.5 rounded-md">
                   Contratado
                 </span>
               </div>
@@ -564,31 +564,31 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 7. FAQ COMPLETO COM CATEGORIAS E BUSCA EM TEMPO REAL                       */}
       {/* ========================================================================= */}
-      <section id="faq-secao" className="w-full px-8 py-16 bg-white border-y border-slate-200/80">
+      <section id="faq-secao" className="w-full px-8 py-16 bg-white dark:bg-[#131E32] border-y border-slate-200/80 dark:border-slate-800 transition-colors">
         <div className="max-w-4xl mx-auto flex flex-col gap-8">
           
           <div className="text-center flex flex-col items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-3 py-1 rounded-full">
               Transparência & Dúvidas
             </span>
-            <h2 className="text-3xl font-black text-slate-950 tracking-tight">
+            <h2 className="text-3xl font-black text-slate-950 dark:text-white tracking-tight">
               Perguntas Frequentes
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Tudo o que você precisa saber sobre as vagas, os cursos e a plataforma gratuita.
             </p>
           </div>
 
           {/* Search and Category Filters for FAQ */}
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 w-full sm:w-80 shadow-2xs">
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-80 shadow-2xs">
               <Search className="w-4 h-4 text-slate-400" />
               <input 
                 type="text"
                 placeholder="Pesquisar dúvida..."
                 value={faqSearch}
                 onChange={(e) => setFaqSearch(e.target.value)}
-                className="w-full text-xs text-slate-900 outline-none bg-transparent"
+                className="w-full text-xs text-slate-900 dark:text-white outline-none bg-transparent"
               />
             </div>
 
@@ -605,8 +605,8 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
                   onClick={() => setFaqCategory(cat.id as any)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     faqCategory === cat.id 
-                      ? 'bg-slate-900 text-white shadow-2xs' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-slate-900 dark:bg-primary text-white shadow-2xs' 
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
                   {cat.label}
@@ -620,17 +620,17 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
             {filteredFaqs.map((faq, index) => (
               <div 
                 key={index}
-                className="bg-[#F8FAFC] rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs transition-all"
+                className="bg-[#F8FAFC] dark:bg-[#0B1120] rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-2xs transition-all"
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                  className="w-full p-4.5 text-left font-bold text-sm text-slate-900 flex items-center justify-between cursor-pointer hover:text-primary transition-colors"
+                  className="w-full p-4.5 text-left font-bold text-sm text-slate-900 dark:text-white flex items-center justify-between cursor-pointer hover:text-primary dark:hover:text-primary transition-colors"
                 >
                   <span>{faq.q}</span>
                   <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${openFaq === index ? 'rotate-180 text-primary' : ''}`} />
                 </button>
                 {openFaq === index && (
-                  <div className="px-4.5 pb-4.5 text-xs text-slate-600 leading-relaxed border-t border-slate-200/70 pt-3 bg-white/70">
+                  <div className="px-4.5 pb-4.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-200/70 dark:border-slate-800 pt-3 bg-white/70 dark:bg-[#131E32]/60">
                     {faq.a}
                   </div>
                 )}
@@ -644,7 +644,7 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 8. CTA FINAL DE ALTA CONVERSÃO                                             */}
       {/* ========================================================================= */}
-      <section className="w-full px-8 py-16 bg-[#F8FAFC]">
+      <section className="w-full px-8 py-16 bg-[#F8FAFC] dark:bg-[#0B1120] transition-colors">
         <div className="max-w-5xl mx-auto bg-gradient-to-r from-primary via-[#418DAA] to-[#6C63FF] rounded-[36px] p-10 lg:p-16 text-white text-center flex flex-col items-center gap-6 shadow-[0_25px_60px_rgba(79,162,192,0.28)] relative overflow-hidden">
           
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 text-white text-xs font-bold backdrop-blur-sm">
@@ -686,25 +686,25 @@ export default function DesktopLanding({ onNavigate }: DesktopLandingProps) {
       {/* ========================================================================= */}
       {/* 10. FOOTER                                                                */}
       {/* ========================================================================= */}
-      <footer className="w-full bg-white border-t border-slate-200/80 px-8 py-8 text-xs text-slate-500">
+      <footer className="w-full bg-white dark:bg-[#0B1120] border-t border-slate-200/80 dark:border-slate-800 px-8 py-8 text-xs text-slate-500 dark:text-slate-400 transition-colors">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           
           <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-lg overflow-hidden border border-slate-200 bg-white p-0.5">
+            <div className="w-6 h-6 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-0.5">
               <img src={logo} alt="Oportuniza" className="w-full h-full object-contain" />
             </div>
-            <span className="font-bold text-slate-800">Oportuniza Araucária</span>
+            <span className="font-bold text-slate-800 dark:text-slate-200">Oportuniza Araucária</span>
             <span>• © {new Date().getFullYear()} Todos os direitos reservados</span>
           </div>
 
           <div className="flex items-center gap-6 font-semibold">
-            <button onClick={() => onNavigate('bio')} className="hover:text-primary transition-colors cursor-pointer">
+            <button onClick={() => onNavigate('bio')} className="hover:text-primary dark:hover:text-primary transition-colors cursor-pointer">
               Sobre o Projeto
             </button>
-            <button onClick={() => onNavigate('privacy')} className="hover:text-primary transition-colors cursor-pointer">
+            <button onClick={() => onNavigate('privacy')} className="hover:text-primary dark:hover:text-primary transition-colors cursor-pointer">
               Privacidade
             </button>
-            <button onClick={() => onNavigate('terms')} className="hover:text-primary transition-colors cursor-pointer">
+            <button onClick={() => onNavigate('terms')} className="hover:text-primary dark:hover:text-primary transition-colors cursor-pointer">
               Termos de Uso
             </button>
           </div>
