@@ -359,17 +359,24 @@ export default function App() {
           return;
         }
 
+        const rawType = String(supabaseUser.user_metadata?.account_type || supabaseUser.user_metadata?.accountType || '').toLowerCase();
+        const rawRole = String(supabaseUser.user_metadata?.role || supabaseUser.user_metadata?.cargo || '').toLowerCase();
+        const isCompMeta = rawType === 'company' || rawRole === 'empresa';
+
         const initialUser: User = {
           id: supabaseUser.id,
           name: supabaseUser.user_metadata?.full_name || cleanEmail.split('@')[0] || 'Usuário',
           email: cleanEmail,
           avatarUrl: supabaseUser.user_metadata?.avatar_url || '',
           bio: '',
-          education: 'Nenhuma',
-          experience: 'Nenhuma registrada',
+          education: isCompMeta ? 'Empresa / Empregador' : 'Ensino Médio em andamento',
+          experience: isCompMeta ? 'Empresa Contratante em Araucária' : 'Nenhuma registrada',
           phone: supabaseUser.user_metadata?.phone || '',
           skills: [],
-          favorites: []
+          favorites: [],
+          accountType: isCompMeta ? 'company' : 'candidate',
+          role: isCompMeta ? 'Empresa' : 'Candidato',
+          cargo: isCompMeta ? 'Empresa' : 'Estudante'
         };
         
         // Fetch profile with database validation
@@ -408,7 +415,12 @@ export default function App() {
               let cachedUser: any = null;
               try {
                 const raw = localStorage.getItem('oportuniza-current-user');
-                if (raw) cachedUser = JSON.parse(raw);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  if (parsed && parsed.email && parsed.email.trim().toLowerCase() === cleanEmail.toLowerCase()) {
+                    cachedUser = parsed;
+                  }
+                }
               } catch (e) {}
 
               const isBlocked = isUserRecordBlocked(data || {});
@@ -437,25 +449,45 @@ export default function App() {
                 data?.cargo === 'Administrador' ||
                 cleanEmail === 'pedroorchel12@gmail.com'
               );
-              const userRole = data?.role || data?.cargo || (isAdminUser ? 'Administrador' : 'Estudante');
-              const logoUrl = data?.company_logo_url || data?.companyLogoUrl || data?.avatar_url || companyData?.logo_url || companyData?.avatar_url || cachedUser?.companyLogoUrl || cachedUser?.avatarUrl || initialUser.avatarUrl || '';
+
+              // Accurately determine if the user is a Company account
+              const explicitType = String(data?.account_type || data?.accountType || supabaseUser.user_metadata?.account_type || '').toLowerCase();
+              const roleLower = String(data?.role || data?.cargo || supabaseUser.user_metadata?.role || '').toLowerCase();
+
+              let isCompanyAccount = false;
+              if (explicitType === 'company' || roleLower === 'empresa') {
+                isCompanyAccount = true;
+              } else if (explicitType === 'candidate' || roleLower === 'candidato' || roleLower === 'estudante') {
+                isCompanyAccount = false;
+              } else if (cachedUser?.accountType === 'company' && cachedUser?.email?.toLowerCase() === cleanEmail) {
+                isCompanyAccount = true;
+              } else if (companyData && companyData.user_id === supabaseUser.id && (data?.account_type === 'company' || data?.role === 'Empresa')) {
+                isCompanyAccount = true;
+              }
+
+              const userRole = isAdminUser ? 'Administrador' : (isCompanyAccount ? 'Empresa' : 'Candidato');
+              const logoUrl = isCompanyAccount 
+                ? (data?.company_logo_url || data?.companyLogoUrl || data?.avatar_url || companyData?.logo_url || companyData?.avatar_url || cachedUser?.companyLogoUrl || cachedUser?.avatarUrl || '') 
+                : (data?.avatar_url || cachedUser?.avatarUrl || initialUser.avatarUrl || '');
 
               const dbLoadedUser: User = {
                 id: supabaseUser.id,
-                name: companyData?.company_name || data?.company_name || data?.name || cachedUser?.name || initialUser.name,
+                name: isCompanyAccount 
+                  ? (companyData?.company_name || data?.company_name || data?.name || cachedUser?.name || initialUser.name)
+                  : (data?.name || cachedUser?.name || initialUser.name),
                 email: data?.email || cleanEmail || initialUser.email,
                 avatarUrl: logoUrl,
-                companyLogoUrl: logoUrl,
-                companyName: companyData?.company_name || data?.company_name || data?.companyName || data?.name || cachedUser?.companyName || '',
-                cnpj: companyData?.cnpj || data?.cnpj || cachedUser?.cnpj || '',
-                responsibleName: companyData?.responsible_name || data?.responsible_name || data?.responsibleName || cachedUser?.responsibleName || '',
-                companySegment: companyData?.segment || data?.company_segment || data?.companySegment || cachedUser?.companySegment || '',
-                companyNeighborhood: companyData?.neighborhood || data?.company_neighborhood || data?.companyNeighborhood || cachedUser?.companyNeighborhood || '',
-                accountType: data?.account_type || data?.accountType || (data?.role === 'empresa' || data?.cargo === 'empresa' || companyData || cachedUser?.accountType === 'company' ? 'company' : initialUser.accountType),
-                bio: data?.bio || companyData?.bio || cachedUser?.bio || '',
-                education: data?.education || 'Ensino Médio em andamento',
-                experience: data?.experience || 'Nenhuma registrada',
-                phone: companyData?.phone || data?.phone || supabaseUser.user_metadata?.phone || '',
+                companyLogoUrl: isCompanyAccount ? logoUrl : undefined,
+                companyName: isCompanyAccount ? (companyData?.company_name || data?.company_name || data?.companyName || cachedUser?.companyName || '') : undefined,
+                cnpj: isCompanyAccount ? (companyData?.cnpj || data?.cnpj || cachedUser?.cnpj || '') : undefined,
+                responsibleName: isCompanyAccount ? (companyData?.responsible_name || data?.responsible_name || data?.responsibleName || cachedUser?.responsibleName || '') : undefined,
+                companySegment: isCompanyAccount ? (companyData?.segment || data?.company_segment || data?.companySegment || cachedUser?.companySegment || '') : undefined,
+                companyNeighborhood: isCompanyAccount ? (companyData?.neighborhood || data?.company_neighborhood || data?.companyNeighborhood || cachedUser?.companyNeighborhood || '') : undefined,
+                accountType: isCompanyAccount ? 'company' : 'candidate',
+                bio: data?.bio || (isCompanyAccount ? companyData?.bio : '') || cachedUser?.bio || '',
+                education: data?.education || (isCompanyAccount ? 'Empresa / Empregador' : 'Ensino Médio em andamento'),
+                experience: data?.experience || (isCompanyAccount ? 'Empresa Contratante em Araucária' : 'Nenhuma registrada'),
+                phone: (isCompanyAccount ? companyData?.phone : null) || data?.phone || supabaseUser.user_metadata?.phone || '',
                 skills: Array.isArray(data?.skills) ? data.skills : [],
                 favorites: initialUser.favorites || [],
                 notificationsEnabled: data?.notifications_enabled ?? true,
@@ -465,7 +497,7 @@ export default function App() {
                 isBlocked: false,
                 status: 'active',
                 role: userRole,
-                cargo: userRole
+                cargo: isAdminUser ? 'Administrador' : (isCompanyAccount ? 'Empresa' : 'Estudante')
               };
 
               setUser(dbLoadedUser);

@@ -459,7 +459,9 @@ export default function AuthScreen({ onNavigate, defaultIsLogin = true, onLoginS
               education: loggedUser.education,
               experience: loggedUser.experience,
               phone: loggedUser.phone || '',
+              account_type: accountType,
               role: accountType === 'company' ? 'Empresa' : 'Candidato',
+              cargo: accountType === 'company' ? 'Empresa' : 'Estudante',
               skills: []
             }, { onConflict: 'id' });
 

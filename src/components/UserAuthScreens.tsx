@@ -381,6 +381,9 @@ export default function UserAuthScreens({
             phone: loggedUser.phone || '',
             education: loggedUser.education,
             experience: loggedUser.experience,
+            account_type: accountType,
+            role: accountType === 'company' ? 'Empresa' : 'Candidato',
+            cargo: accountType === 'company' ? 'Empresa' : 'Estudante',
             skills: []
           }, { onConflict: 'id' });
         } catch (dbErr) {
