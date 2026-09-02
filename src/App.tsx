@@ -633,11 +633,25 @@ export default function App() {
     }
     
     // Clear all app specific local storage for protection and isolation
-    localStorage.removeItem('oportuniza-current-user');
-    localStorage.removeItem('oportuniza-applications');
-    localStorage.removeItem('oportuniza-enrollments');
-    localStorage.removeItem('oportuniza-favorites');
-    localStorage.removeItem('oportuniza-courses-progress');
+    try {
+      localStorage.removeItem('oportuniza-current-user');
+      localStorage.removeItem('oportuniza-applications');
+      localStorage.removeItem('oportuniza-enrollments');
+      localStorage.removeItem('oportuniza-favorites');
+      localStorage.removeItem('oportuniza-courses-progress');
+      
+      // Remove any leftover supabase session keys from storage
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+      console.warn("Error cleaning storage during logout:", e);
+    }
     
     // Reset all isolated state
     setUser(null);
@@ -1143,23 +1157,7 @@ export default function App() {
       }
     }
 
-    // Clear all app specific local storage
-    localStorage.removeItem('oportuniza-current-user');
-    localStorage.removeItem('oportuniza-applications');
-    localStorage.removeItem('oportuniza-enrollments');
-    localStorage.removeItem('oportuniza-favorites');
-    localStorage.removeItem('oportuniza-courses-progress');
-    
-    // Reset state
-    setUser(null);
-    setApplications([]);
-    setEnrollments([]);
-    setFavorites([]);
-    setCompletedCourses([]);
-    setHistory([]);
-    
-    // Navigate to landing
-    handleScreenNavigation('landing');
+    await handleSignOut();
     
     setNotification('Todos os seus dados foram excluídos permanentemente');
     setTimeout(() => setNotification(null), 3000);
@@ -1313,10 +1311,7 @@ export default function App() {
             <ErrorBoundary fallbackTitle="Erro ao carregar o Painel Administrativo">
               <AdminPanelScreen 
                 user={user}
-                onLogout={() => {
-                  setUser(null);
-                  setCurrentScreen('landing');
-                }}
+                onLogout={handleSignOut}
               />
             </ErrorBoundary>
           )}
@@ -1326,10 +1321,7 @@ export default function App() {
             <ErrorBoundary fallbackTitle="Erro ao carregar o Painel da Empresa">
               <CompanyDashboardScreen
                 user={user}
-                onLogout={() => {
-                  setUser(null);
-                  setCurrentScreen('landing');
-                }}
+                onLogout={handleSignOut}
                 onUpdateUser={(updated) => setUser(updated)}
               />
             </ErrorBoundary>
