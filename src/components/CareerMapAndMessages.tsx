@@ -222,13 +222,8 @@ Dúvidas sobre como usar a plataforma, reportar erros ou enviar sugestões? Digi
           scrollWheelZoom={true}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          />
-          <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
-            opacity={1}
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <MapUpdater center={mapCenter} zoom={selectedPartner || selectedJob ? 15 : 11} />
           {MAP_PARTNERS.map((partner) => (

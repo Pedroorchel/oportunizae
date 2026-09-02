@@ -30,13 +30,16 @@ import {
   MapPin,
   Heart,
   Moon,
-  Sun
+  Sun,
+  Building2,
+  Globe
 } from 'lucide-react';
 import { User, ScreenId, Application, Enrollment, Course } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from '../lib/toast';
 import { useTheme } from '../lib/theme';
 import { isAccountBlocked } from '../lib/blockedAccounts';
+import { saveCompanyProfile } from '../lib/companyService';
 
 interface ProfileAndSettingsProps {
   user: User | null;
@@ -82,6 +85,7 @@ export default function ProfileAndSettings({
   const [theme, toggleTheme] = useTheme();
 
   // Form profile states
+  const isCompanyAccount = user?.accountType === 'company' || user?.role === 'Empresa' || user?.cargo === 'Empresa';
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -92,6 +96,16 @@ export default function ProfileAndSettings({
   const [newSkill, setNewSkill] = useState('');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Company-specific profile states
+  const [companyName, setCompanyName] = useState(user?.companyName || user?.name || '');
+  const [cnpj, setCnpj] = useState(user?.cnpj || '');
+  const [responsibleName, setResponsibleName] = useState(user?.responsibleName || user?.name || '');
+  const [responsibleRole, setResponsibleRole] = useState(user?.responsibleRole || 'RH / Recrutamento');
+  const [companySegment, setCompanySegment] = useState(user?.companySegment || 'Comércio & Varejo');
+  const [companyNeighborhood, setCompanyNeighborhood] = useState(user?.companyNeighborhood || 'Centro');
+  const [companyAddress, setCompanyAddress] = useState(user?.companyAddress || '');
+  const [companyWebsite, setCompanyWebsite] = useState(user?.companyWebsite || '');
 
   // Push Notifications state (Specifically for TI / Tech Jobs)
   const [tiJobsPush, setTiJobsPush] = useState<boolean>(user?.tiJobsPushEnabled ?? false);

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Search, Filter, MapPin, Briefcase, Clock, DollarSign, Building, Heart, CheckCircle2, Bookmark, ChevronRight, ArrowLeft, Globe, Sparkles } from 'lucide-react';
 import { Job, Application } from '../types';
-import { mockJobs } from '../data';
+import { mockJobs, loadJobsFromSupabase } from '../data';
 
 interface JobsSectionProps {
   applications: Application[];
@@ -24,9 +24,25 @@ export default function JobsSection({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('Todos');
   const [activeTab, setActiveTab] = useState<'vagas' | 'favoritos' | 'candidaturas'>('vagas');
+  const [jobsList, setJobsList] = useState<Job[]>(() => [...mockJobs]);
+
+  useEffect(() => {
+    loadJobsFromSupabase().then(() => {
+      setJobsList([...mockJobs]);
+    });
+
+    const handleJobsChanged = () => {
+      setJobsList([...mockJobs]);
+    };
+
+    window.addEventListener('oportuniza-jobs-changed', handleJobsChanged);
+    return () => {
+      window.removeEventListener('oportuniza-jobs-changed', handleJobsChanged);
+    };
+  }, []);
 
   // Filter logic for jobs
-  const filteredJobs = mockJobs.filter((job) => {
+  const filteredJobs = jobsList.filter((job) => {
     // Hide job if user already applied to it
     const hasApplied = applications.some((app) => app.jobId === job.id);
     if (hasApplied) return false;
@@ -45,7 +61,7 @@ export default function JobsSection({
   });
 
   // Filter logic for favorited jobs
-  const favoritedJobs = mockJobs.filter((job) => {
+  const favoritedJobs = jobsList.filter((job) => {
     const isFav = favorites.includes(job.id);
     if (!isFav) return false;
 
@@ -188,7 +204,7 @@ export default function JobsSection({
                         {/* Card Header: Company Logo & Basic info */}
                         <div className="flex items-start gap-4">
                           <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 font-bold text-gray-600 font-sans text-lg shrink-0 overflow-hidden shadow-inner">
-                            {job.logo?.startsWith('http') ? (
+                            {job.logo?.startsWith('http') || job.logo?.startsWith('data:') ? (
                               <img src={job.logo} alt={job.company} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                               job.company.substring(0, 2).toUpperCase()

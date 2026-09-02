@@ -6,7 +6,7 @@ import {
   Calendar, Award, ListFilter, Check, ExternalLink, AlertOctagon, Info, Star, Play,
   Mail, Phone, Smartphone, ClipboardCheck, ArrowUpRight, CheckCircle2, UserCheck,
   Menu, X, Eye, EyeOff, Shield, ShieldCheck, Tag, Sparkles, ChevronDown, UserCog,
-  Lock, Unlock, Ban, AlertTriangle, UserX
+  Lock, Unlock, Ban, AlertTriangle, UserX, Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Job, Course, Application, User, Enrollment } from '../types';
@@ -27,7 +27,7 @@ interface AdminPanelScreenProps {
 }
 
 export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'jobs' | 'courses' | 'applications' | 'enrollments' | 'accounts'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'jobs' | 'company_jobs' | 'courses' | 'applications' | 'enrollments' | 'accounts'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Real dynamic in-memory states
@@ -36,6 +36,10 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
   const [applications, setApplications] = useState<Application[]>([]);
   const [enrollmentsList, setEnrollmentsList] = useState<Enrollment[]>([]);
   const [userList, setUserList] = useState<User[]>([]);
+
+  // Company Jobs Tab states
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('Todas');
+  const [companyJobsSearch, setCompanyJobsSearch] = useState<string>('');
   
   // Accounts / Roles Management states
   const [usersSearch, setUsersSearch] = useState('');
@@ -499,21 +503,88 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
     };
   };
 
+  // Fetch all jobs directly from Supabase for real-time synchronization
+  const fetchAllJobs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*');
+
+      if (!error && data && Array.isArray(data) && data.length > 0) {
+        const dbJobs: Job[] = data.map((item: any) => ({
+          id: String(item.id ?? `job-${Math.random()}`),
+          title: String(item.title || 'Vaga'),
+          company: String(item.company || item.company_name || 'Empresa Cadastrada'),
+          category: String(item.category || 'Geral'),
+          description: String(item.description || ''),
+          requirements: Array.isArray(item.requirements) ? item.requirements : (typeof item.requirements === 'string' ? item.requirements.split('\n') : ['Ensino Médio']),
+          salary: String(item.salary || 'A combinar'),
+          type: String(item.type || 'CLT'),
+          isRemote: Boolean(item.is_remote || item.isRemote),
+          location: String(item.location || 'Araucária - PR'),
+          lat: item.lat ? Number(item.lat) : undefined,
+          lng: item.lng ? Number(item.lng) : undefined,
+          logo: item.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.company || 'Empresa')}&background=52A8C7&color=fff&size=128&bold=true`,
+          dateString: String(item.dateString || item.posted_date || 'Recente'),
+          color: item.color || 'border-l-[#52A8C7]'
+        }));
+
+        const dbIds = new Set(dbJobs.map(j => j.id));
+        const filteredMock = mockJobs.filter(m => !dbIds.has(m.id));
+        const merged = [...dbJobs, ...filteredMock];
+        setJobsList(merged);
+        saveAdminJobs(merged);
+      }
+    } catch (err) {
+      console.warn('Error fetching jobs for admin:', err);
+    }
+  };
+
+  // Group jobs by company for "Vagas por Empresas" view
+  const companyJobsStats = React.useMemo(() => {
+    const map: Record<string, { companyName: string; count: number; jobs: Job[]; logo?: string; lastDate: string }> = {};
+    
+    jobsList.forEach(job => {
+      const cName = (job.company || 'Empresa').trim();
+      if (!map[cName]) {
+        map[cName] = {
+          companyName: cName,
+          count: 0,
+          jobs: [],
+          logo: job.logo,
+          lastDate: job.dateString || 'Recente'
+        };
+      }
+      map[cName].count += 1;
+      map[cName].jobs.push(job);
+    });
+
+    return Object.values(map).sort((a, b) => b.count - a.count);
+  }, [jobsList]);
+
   useEffect(() => {
     fetchAllApplications();
     fetchAllEnrollments();
     fetchAllUsers();
+    fetchAllJobs();
     
-    const channel = supabase
+    const appsChannel = supabase
       .channel('public:applications')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, (payload) => {
-        console.log('Realtime change received!', payload);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
         fetchAllApplications();
       })
       .subscribe();
 
+    const jobsChannel = supabase
+      .channel('public:jobs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
+        fetchAllJobs();
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(appsChannel);
+      supabase.removeChannel(jobsChannel);
     };
   }, []);
 
@@ -900,6 +971,28 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                 </button>
 
                 <button
+                  id="tab-company-jobs"
+                  onClick={() => {
+                    setActiveTab('company_jobs');
+                    setSelectedApplication(null);
+                    setPreviewingCourseLessons(null);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    activeTab === 'company_jobs' 
+                    ? 'bg-[#52A8C7] text-slate-950 shadow-lg shadow-[#52A8C7]/15 translate-x-1' 
+                    : 'text-slate-400 hover:bg-slate-900/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-4 h-4" />
+                    <span>Vagas de Empresas</span>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === 'company_jobs' ? 'bg-slate-900 text-[#52A8C7]' : 'bg-slate-800 text-slate-400'}`}>
+                    {companyJobsStats.length} emp.
+                  </span>
+                </button>
+
+                <button
                   id="tab-courses"
                   onClick={() => {
                     setActiveTab('courses');
@@ -1113,6 +1206,28 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                         </div>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === 'jobs' ? 'bg-slate-800 text-[#52A8C7]' : 'bg-slate-800 text-slate-400'}`}>
                           {jobsList.length}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setActiveTab('company_jobs');
+                          setSelectedApplication(null);
+                          setPreviewingCourseLessons(null);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between text-xs font-bold transition-all duration-200 cursor-pointer ${
+                          activeTab === 'company_jobs' 
+                          ? 'bg-[#52A8C7] text-slate-950 shadow-lg shadow-[#52A8C7]/15 translate-x-1' 
+                          : 'text-slate-400 hover:bg-slate-950 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Building2 className="w-4 h-4" />
+                          <span>Vagas de Empresas</span>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === 'company_jobs' ? 'bg-slate-800 text-[#52A8C7]' : 'bg-slate-800 text-slate-400'}`}>
+                          {companyJobsStats.length}
                         </span>
                       </button>
 
@@ -1735,6 +1850,248 @@ export default function AdminPanelScreen({ user, onLogout }: AdminPanelScreenPro
                   <p className="text-xs text-slate-400">Nenhuma vaga atende aos filtros de emprego definidos no momento.</p>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* SCREEN: COMPANY JOBS MONITOR */}
+          {activeTab === 'company_jobs' && (
+            <motion.div 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              {/* Header Banner */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-900/60 border border-slate-800 rounded-3xl relative overflow-hidden">
+                <div className="space-y-1 z-10">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 bg-[#52A8C7]/15 text-[#52A8C7] border border-[#52A8C7]/30 text-[10px] font-black uppercase rounded-full tracking-wider flex items-center gap-1">
+                      <Building2 className="w-3 h-3" /> Monitor Corporativo
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold rounded-full flex items-center gap-1 animate-pulse">
+                      ● Sincronizado ao Vivo
+                    </span>
+                  </div>
+                  <h2 className="text-2xl font-black text-white tracking-tight">Vagas Adicionadas por Empresas</h2>
+                  <p className="text-xs text-slate-400">Acompanhe em tempo real todas as vagas cadastradas pelas empresas parceiras de Araucária e o número de vagas de cada uma.</p>
+                </div>
+                
+                <button 
+                  onClick={handleOpenAddJobParams}
+                  className="bg-[#52A8C7] hover:bg-[#3d91ad] text-slate-950 font-black py-3.5 px-5 rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-[#52A8C7]/15 active:scale-95 z-10 shrink-0"
+                >
+                  <Plus className="w-4 h-4 stroke-[3px]" />
+                  <span>Cadastrar Nova Vaga</span>
+                </button>
+              </div>
+
+              {/* KPI Stats Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Vagas de Empresas</span>
+                    <span className="text-3xl font-black text-white tracking-tight mt-1 block">{jobsList.length}</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Cadastradas e salvas no banco</span>
+                  </div>
+                  <div className="w-12 h-12 bg-[#52A8C7]/10 rounded-2xl flex items-center justify-center text-[#52A8C7]">
+                    <Briefcase className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest block">Empresas Parceiras Ativas</span>
+                    <span className="text-3xl font-black text-white tracking-tight mt-1 block">{companyJobsStats.length}</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Com vagas publicadas</span>
+                  </div>
+                  <div className="w-12 h-12 bg-violet-500/10 rounded-2xl flex items-center justify-center text-violet-400">
+                    <Building2 className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block">Empresa Líder em Vagas</span>
+                    <span className="text-lg font-black text-white tracking-tight mt-1 block truncate max-w-[180px]">
+                      {companyJobsStats[0]?.companyName || 'Nenhuma'}
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-bold mt-0.5 block">
+                      {companyJobsStats[0]?.count || 0} vagas adicionadas
+                    </span>
+                  </div>
+                  <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-400">
+                    <Award className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Empresa Cards Summary with "X vagas adicionadas" Badge */}
+              <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-[#52A8C7]" />
+                      Empresas e Contagem de Vagas Cadastradas
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Clique em uma empresa para filtrar e visualizar suas vagas publicadas.</p>
+                  </div>
+                  {selectedCompanyFilter !== 'Todas' && (
+                    <button 
+                      onClick={() => setSelectedCompanyFilter('Todas')}
+                      className="text-[10px] font-bold text-[#52A8C7] hover:underline bg-[#52A8C7]/10 px-3 py-1.5 rounded-xl border border-[#52A8C7]/20 cursor-pointer"
+                    >
+                      Exibir Todas as Empresas ({companyJobsStats.length})
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {companyJobsStats.map(stat => {
+                    const isSelected = selectedCompanyFilter === stat.companyName;
+                    return (
+                      <button
+                        key={stat.companyName}
+                        onClick={() => setSelectedCompanyFilter(isSelected ? 'Todas' : stat.companyName)}
+                        className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected 
+                            ? 'bg-[#52A8C7]/15 border-[#52A8C7] text-white shadow-lg shadow-[#52A8C7]/10 ring-1 ring-[#52A8C7]' 
+                            : 'bg-slate-950/70 hover:bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                            {stat.logo ? (
+                              <img src={stat.logo} alt={stat.companyName} className="w-full h-full object-contain" />
+                            ) : (
+                              <Building2 className="w-5 h-5 text-[#52A8C7]" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate text-white">{stat.companyName}</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">Última: {stat.lastDate}</p>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex flex-col items-end">
+                          <span className="px-2.5 py-1 bg-[#52A8C7] text-slate-950 font-black text-[11px] rounded-xl shadow-xs">
+                            {stat.count} {stat.count === 1 ? 'vaga' : 'vagas'}
+                          </span>
+                          <span className="text-[8px] text-slate-400 font-bold uppercase mt-1">adicionadas</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Feed of All Jobs Posted by Companies */}
+              <div className="space-y-4 p-6 bg-slate-900 border border-slate-800 rounded-3xl">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-[#52A8C7]" />
+                      {selectedCompanyFilter === 'Todas' ? 'Todas as Vagas Novas Cadastradas' : `Vagas Publicadas por "${selectedCompanyFilter}"`}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Mostrando {jobsList.filter(j => selectedCompanyFilter === 'Todas' || j.company === selectedCompanyFilter).length} vaga(s) salvas no sistema.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="Buscar por cargo, empresa ou localização..."
+                        value={companyJobsSearch}
+                        onChange={(e) => setCompanyJobsSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 focus:border-[#52A8C7] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cards List */}
+                <div className="space-y-3">
+                  {jobsList
+                    .filter(job => {
+                      const companyMatch = selectedCompanyFilter === 'Todas' || job.company === selectedCompanyFilter;
+                      const textMatch = (job.title || '').toLowerCase().includes(companyJobsSearch.toLowerCase()) || 
+                                        (job.company || '').toLowerCase().includes(companyJobsSearch.toLowerCase()) ||
+                                        (job.location || '').toLowerCase().includes(companyJobsSearch.toLowerCase());
+                      return companyMatch && textMatch;
+                    })
+                    .map(job => {
+                      const companyStat = companyJobsStats.find(s => s.companyName === job.company);
+                      const totalCompanyJobs = companyStat ? companyStat.count : 1;
+
+                      return (
+                        <div 
+                          key={job.id}
+                          className="p-4 bg-slate-950/80 border border-slate-800 hover:border-slate-700/80 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all"
+                        >
+                          <div className="flex items-start gap-3.5 min-w-0">
+                            <img 
+                              src={job.logo} 
+                              alt={job.company} 
+                              className="w-11 h-11 rounded-xl object-contain bg-slate-900 border border-slate-800 shrink-0 mt-0.5"
+                            />
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[12px] font-black text-white">{job.company}</span>
+                                <span className="px-2.5 py-0.5 bg-[#52A8C7]/15 border border-[#52A8C7]/30 text-[#52A8C7] text-[10px] font-extrabold rounded-full flex items-center gap-1">
+                                  <Building2 className="w-3 h-3" /> {totalCompanyJobs} {totalCompanyJobs === 1 ? 'vaga adicionada' : 'vagas adicionadas'}
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-900 text-slate-400 border border-slate-800 text-[10px] font-semibold rounded-md">
+                                  {job.category}
+                                </span>
+                              </div>
+
+                              <h4 className="text-sm font-extrabold text-white">{job.title}</h4>
+
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 font-mono">
+                                <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-[#52A8C7]" /> {job.location}</span>
+                                <span>•</span>
+                                <span className="flex items-center gap-1"><DollarSign className="w-3 h-3 text-emerald-400" /> {job.salary}</span>
+                                <span>•</span>
+                                <span className="text-slate-300 font-bold">{job.type}</span>
+                                <span>•</span>
+                                <span className="text-slate-500">{job.dateString}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                            <button 
+                              onClick={() => handleOpenEditJob(job)}
+                              className="p-2.5 bg-slate-900 border border-slate-800 hover:border-[#52A8C7] text-slate-300 hover:text-[#52A8C7] rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Editar</span>
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteJob(job.id)}
+                              className="p-2.5 bg-slate-900 border border-slate-800 hover:border-red-500/50 text-slate-400 hover:text-red-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Excluir</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {jobsList.filter(job => {
+                    const companyMatch = selectedCompanyFilter === 'Todas' || job.company === selectedCompanyFilter;
+                    const textMatch = (job.title || '').toLowerCase().includes(companyJobsSearch.toLowerCase()) || 
+                                      (job.company || '').toLowerCase().includes(companyJobsSearch.toLowerCase());
+                    return companyMatch && textMatch;
+                  }).length === 0 && (
+                    <div className="py-12 text-center text-slate-500 text-xs">
+                      Nenhuma vaga encontrada para os critérios de busca especificados.
+                    </div>
+                  )}
+                </div>
+              </div>
             </motion.div>
           )}
 

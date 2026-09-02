@@ -15,6 +15,7 @@ import BioScreen from './components/BioScreen';
 import UserAuthScreens from './components/UserAuthScreens';
 import AuthScreen from './components/AuthScreen';
 import AdminPanelScreen from './components/AdminPanelScreen';
+import CompanyDashboardScreen from './components/CompanyDashboardScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import JobsSection from './components/JobsSection';
 import CoursesSection from './components/CoursesSection';
@@ -391,8 +392,26 @@ export default function App() {
               }
             }
 
-            if (data) {
-              const isBlocked = isUserRecordBlocked(data);
+            let companyData: any = null;
+            if (cleanEmail) {
+              const { data: cRow } = await supabase
+                .from('companies')
+                .select('*')
+                .ilike('email', cleanEmail)
+                .maybeSingle();
+              if (cRow) {
+                companyData = cRow;
+              }
+            }
+
+            if (data || companyData) {
+              let cachedUser: any = null;
+              try {
+                const raw = localStorage.getItem('oportuniza-current-user');
+                if (raw) cachedUser = JSON.parse(raw);
+              } catch (e) {}
+
+              const isBlocked = isUserRecordBlocked(data || {});
               if (isBlocked) {
                 console.warn("Usuário bloqueado no banco tentou acessar:", cleanEmail);
                 const blockReason = extractBlockReasonFromRecord(data) || await fetchAccountBlockReason({ id: supabaseUser.id, email: cleanEmail });
@@ -404,7 +423,7 @@ export default function App() {
                 setCompletedCourses([]);
                 setBlockedNotice({
                   email: cleanEmail || 'Sua conta',
-                  name: data.name || cleanEmail,
+                  name: data?.name || cleanEmail,
                   reason: blockReason
                 });
                 setCurrentScreen('landing');
@@ -412,28 +431,36 @@ export default function App() {
               }
 
               const isAdminUser = Boolean(
-                data.is_admin ||
-                data.isAdmin ||
-                data.role === 'Administrador' ||
-                data.cargo === 'Administrador' ||
+                data?.is_admin ||
+                data?.isAdmin ||
+                data?.role === 'Administrador' ||
+                data?.cargo === 'Administrador' ||
                 cleanEmail === 'pedroorchel12@gmail.com'
               );
-              const userRole = data.role || data.cargo || (isAdminUser ? 'Administrador' : 'Estudante');
+              const userRole = data?.role || data?.cargo || (isAdminUser ? 'Administrador' : 'Estudante');
+              const logoUrl = data?.company_logo_url || data?.companyLogoUrl || data?.avatar_url || companyData?.logo_url || companyData?.avatar_url || cachedUser?.companyLogoUrl || cachedUser?.avatarUrl || initialUser.avatarUrl || '';
 
               const dbLoadedUser: User = {
                 id: supabaseUser.id,
-                name: data.name || initialUser.name,
-                email: data.email || initialUser.email,
-                avatarUrl: data.avatar_url || initialUser.avatarUrl,
-                bio: data.bio || '',
-                education: data.education || 'Ensino Médio em andamento',
-                experience: data.experience || 'Nenhuma registrada',
-                phone: data.phone || supabaseUser.user_metadata?.phone || '',
-                skills: Array.isArray(data.skills) ? data.skills : [],
+                name: companyData?.company_name || data?.company_name || data?.name || cachedUser?.name || initialUser.name,
+                email: data?.email || cleanEmail || initialUser.email,
+                avatarUrl: logoUrl,
+                companyLogoUrl: logoUrl,
+                companyName: companyData?.company_name || data?.company_name || data?.companyName || data?.name || cachedUser?.companyName || '',
+                cnpj: companyData?.cnpj || data?.cnpj || cachedUser?.cnpj || '',
+                responsibleName: companyData?.responsible_name || data?.responsible_name || data?.responsibleName || cachedUser?.responsibleName || '',
+                companySegment: companyData?.segment || data?.company_segment || data?.companySegment || cachedUser?.companySegment || '',
+                companyNeighborhood: companyData?.neighborhood || data?.company_neighborhood || data?.companyNeighborhood || cachedUser?.companyNeighborhood || '',
+                accountType: data?.account_type || data?.accountType || (data?.role === 'empresa' || data?.cargo === 'empresa' || companyData || cachedUser?.accountType === 'company' ? 'company' : initialUser.accountType),
+                bio: data?.bio || companyData?.bio || cachedUser?.bio || '',
+                education: data?.education || 'Ensino Médio em andamento',
+                experience: data?.experience || 'Nenhuma registrada',
+                phone: companyData?.phone || data?.phone || supabaseUser.user_metadata?.phone || '',
+                skills: Array.isArray(data?.skills) ? data.skills : [],
                 favorites: initialUser.favorites || [],
-                notificationsEnabled: data.notifications_enabled ?? true,
-                marketingEmailsEnabled: data.marketing_emails_enabled ?? false,
-                updatedAt: data.updated_at,
+                notificationsEnabled: data?.notifications_enabled ?? true,
+                marketingEmailsEnabled: data?.marketing_emails_enabled ?? false,
+                updatedAt: data?.updated_at,
                 isAdmin: isAdminUser,
                 isBlocked: false,
                 status: 'active',
@@ -442,6 +469,9 @@ export default function App() {
               };
 
               setUser(dbLoadedUser);
+              try {
+                localStorage.setItem('oportuniza-current-user', JSON.stringify(dbLoadedUser));
+              } catch (e) {}
               if (dbLoadedUser.favorites) {
                 setFavorites(dbLoadedUser.favorites);
               }
@@ -532,6 +562,13 @@ export default function App() {
     // Load live data from Supabase if available
     loadJobsFromSupabase();
     loadCoursesFromSupabase();
+
+    // Poll every 10 seconds to ensure real-time synchronization with HR published jobs
+    const pollInterval = setInterval(() => {
+      loadJobsFromSupabase();
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   useEffect(() => {
@@ -664,8 +701,7 @@ export default function App() {
         location: job.location || '',
         type: job.type || 'Tempo Integral',
         salary: job.salary || '',
-        description: job.description || '',
-        active: true
+        description: job.description || ''
       }], { onConflict: 'id' });
     } catch (jErr) {
       console.warn('Auto-sync job to DB returned:', jErr);
@@ -699,8 +735,7 @@ export default function App() {
                 location: job.location || '',
                 type: job.type || 'Tempo Integral',
                 salary: job.salary || '',
-                description: job.description || '',
-                active: true
+                description: job.description || ''
               }], { onConflict: 'id' });
 
               const retryRes = await supabase
@@ -1254,8 +1289,22 @@ export default function App() {
             </ErrorBoundary>
           )}
 
+          {/* Company Dashboard (Exclusive Company / RH Workspace) */}
+          {user && !user.isAdmin && (user.accountType === 'company' || user.role?.toLowerCase() === 'empresa' || user.cargo?.toLowerCase() === 'empresa') && (
+            <ErrorBoundary fallbackTitle="Erro ao carregar o Painel da Empresa">
+              <CompanyDashboardScreen
+                user={user}
+                onLogout={() => {
+                  setUser(null);
+                  setCurrentScreen('landing');
+                }}
+                onUpdateUser={(updated) => setUser(updated)}
+              />
+            </ErrorBoundary>
+          )}
+
           {/* Main App (Protected Student View) */}
-          {user && !user.isAdmin && currentScreen !== 'admin' && (
+          {user && !user.isAdmin && !(user.accountType === 'company' || user.role?.toLowerCase() === 'empresa' || user.cargo?.toLowerCase() === 'empresa') && currentScreen !== 'admin' && (
             <>
               {/* Home */}
               {currentScreen === 'home' && (

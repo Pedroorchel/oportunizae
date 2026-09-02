@@ -1117,10 +1117,25 @@ export const loadJobsFromSupabase = async (): Promise<boolean> => {
         lng: j.lng,
         logo: j.logo,
         dateString: j.dateString,
-        color: j.color || '',
-        active: j.active !== false
+        color: j.color || ''
       }));
-      await supabase.from('jobs').upsert(recordsToUpsert);
+      try {
+        const { error: upsertErr } = await supabase.from('jobs').upsert(recordsToUpsert);
+        if (upsertErr) {
+          const simpleRecords = finalMergedJobs.map(j => ({
+            id: j.id,
+            title: j.title,
+            company: j.company,
+            description: j.description,
+            salary: j.salary,
+            type: j.type,
+            location: j.location
+          }));
+          await supabase.from('jobs').upsert(simpleRecords);
+        }
+      } catch (err) {
+        console.warn('Jobs sync error handled gracefully:', err);
+      }
     }
 
     mockJobs.length = 0;
@@ -1348,10 +1363,21 @@ export const saveAdminJobs = async (jobs: Job[]) => {
         lng: j.lng,
         logo: j.logo,
         dateString: j.dateString,
-        color: j.color || '',
-        active: j.active !== false
+        color: j.color || ''
       }));
-      await supabase.from('jobs').upsert(records);
+      const { error: syncErr } = await supabase.from('jobs').upsert(records);
+      if (syncErr) {
+        const fallbackRecords = jobs.map(j => ({
+          id: j.id,
+          title: j.title,
+          company: j.company,
+          description: j.description,
+          salary: j.salary,
+          type: j.type,
+          location: j.location
+        }));
+        await supabase.from('jobs').upsert(fallbackRecords);
+      }
     }
   } catch (err) {
     console.warn('Supabase jobs sync failed, keeping local storage sync active:', err);

@@ -46,6 +46,37 @@ export interface User {
   cargo?: string;
   favorites?: string[];
   updatedAt?: string;
+  accountType?: 'candidate' | 'company';
+  companyName?: string;
+  cnpj?: string;
+  companySegment?: string;
+  companyNeighborhood?: string;
+  companyAddress?: string;
+  companyWebsite?: string;
+  responsibleName?: string;
+  responsibleRole?: string;
+  companyLogoUrl?: string;
+}
+
+export interface Company {
+  id: string;
+  user_id?: string;
+  company_name: string;
+  cnpj?: string;
+  responsible_name: string;
+  responsible_role?: string;
+  email: string;
+  phone?: string;
+  segment?: string;
+  neighborhood?: string;
+  address?: string;
+  website?: string;
+  status?: 'active' | 'pending' | 'blocked' | 'verified' | string;
+  verified?: boolean;
+  bio?: string;
+  logo_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Job {
